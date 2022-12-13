@@ -1,0 +1,25 @@
+name: Build and test
+"on":
+  pull_request:
+    types:
+      - opened
+      - synchronize
+    paths:
+      - ".github/**"
+      - src/**
+  push:
+    branches:
+      - master
+jobs:
+  build_cache:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+      - run: rustup toolchain install stable --profile minimal
+      - name: build
+        run: cargo build
+      - name: check format
+        run: make check-fmt
+      - name: test
+        run: make test

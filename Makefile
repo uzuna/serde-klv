@@ -11,3 +11,7 @@ check-fmt:
 .PHONY: bench
 bench:
 	cargo bench --feature uasdls
+
+.PHONY: test
+test:
+	cargo test --all -- --nocapture
