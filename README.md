@@ -1,7 +1,9 @@
-# Serde KLV &emsp; [![Build Status]][github action] [![Rustc Version 1.65+]][rustc]
+# Serde KLV &emsp; [![Build Status]][github action] [![Latest Version]][crates.io] [![Rustc Version 1.65+]][rustc]
 
 [Build Status]: https://github.com/uzuna/serde-klv/actions/workflows/ci.yml/badge.svg
 [github action]: https://github.com/uzuna/serde-klv/actions/workflows/ci.yml
+[Latest Version]: https://img.shields.io/crates/v/serde_klv.svg
+[crates.io]: https://crates.io/crates/serde\_klv
 [Rustc Version 1.65+]: https://img.shields.io/badge/rustc-1.65+-lightgray.svg
 [rustc]: https://blog.rust-lang.org/2022/11/03/Rust-1.65.0.html
 
