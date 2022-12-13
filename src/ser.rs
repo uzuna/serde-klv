@@ -764,7 +764,7 @@ mod tests {
         assert!(x.content_len() > 0);
 
         for v in x.iter() {
-            assert!(v.key > 0 );
+            assert!(v.key > 0);
         }
     }
 
