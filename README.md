@@ -1,4 +1,9 @@
-# Serde KLV
+# Serde KLV &emsp; [![Build Status]][github action] [![Rustc Version 1.65+]][rustc]
+
+[Build Status]: https://github.com/uzuna/serde-klv/actions/workflows/ci.yml/badge.svg
+[github action]: https://github.com/uzuna/serde-klv/actions/workflows/ci.yml
+[Rustc Version 1.65+]: https://img.shields.io/badge/rustc-1.65+-lightgray.svg
+[rustc]: https://blog.rust-lang.org/2022/11/03/Rust-1.65.0.html
 
 **Serde is a framework for *ser*ializing and *de*serializing Rust data structures efficiently and generically.**
 
@@ -13,6 +18,7 @@ You may be looking for:
 
 ```rust
 use serde_klv::{from_bytes, to_bytes};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 // Set Universal Key string or byte-literal
