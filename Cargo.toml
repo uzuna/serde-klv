@@ -1,0 +1,29 @@
+[package]
+name = "serde_klv"
+version = "0.1.0"
+edition = "2021"
+authors = ["FUJINAKA Fumiya <uzuna.kf@gmail.com>"]
+description = "KLV data format for Serde"
+categories = ["encoding", "parser-implementations"]
+keywords = ["klv", "serde", "serialization"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/uzuna/serde-klv"
+rust-version = "1.65"
+
+[dependencies]
+byteorder = {version = "1.4.3"}
+serde = { version = "1.0.149" }
+
+[dev-dependencies]
+serde = { version = "1.0.149", features = ["derive"] }
+chrono = "0.4.22"
+criterion = "0.4.0"
+serde_bytes = "0.11.7"
+
+[features]
+default = []
+uasdls = []
+
+[[bench]]
+name = "benchmark"
+harness = false
