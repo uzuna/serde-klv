@@ -9,7 +9,7 @@ keywords = ["klv", "serde", "serialization"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/uzuna/serde-klv"
 rust-version = "1.65"
-exclude = [".github", "benches/", "Makefile"]
+exclude = [".github", "Makefile"]
 
 [dependencies]
 byteorder = {version = "1.4.3"}
