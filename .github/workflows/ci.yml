@@ -6,7 +6,7 @@ name: Build and test
       - synchronize
     paths:
       - ".github/**"
-      - klv/**
+      - src/**
   push:
     branches:
       - master
