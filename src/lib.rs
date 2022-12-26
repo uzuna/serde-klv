@@ -32,18 +32,16 @@
 //!     str: &'a str,
 //! }
 //!
-//! fn main() {
-//!     let t = TestStruct {
-//!         u8: 127,
-//!         u64: u32::MAX as u64 + 1,
-//!         none_skip_some: Some(2016),
-//!         none_skip_none: None,
-//!         str: "this is string",
-//!     };
-//!     let buf = to_bytes(&t).unwrap();
-//!     let x = from_bytes::<TestStruct>(&buf).unwrap();
-//!    assert_eq!(&t, &x);
-//! }
+//! let t = TestStruct {
+//!     u8: 127,
+//!     u64: u32::MAX as u64 + 1,
+//!     none_skip_some: Some(2016),
+//!     none_skip_none: None,
+//!     str: "this is string",
+//! };
+//! let buf = to_bytes(&t).unwrap();
+//! let x = from_bytes::<TestStruct>(&buf).unwrap();
+//! assert_eq!(&t, &x);
 //! ```
 
 use std::fmt::Debug;
@@ -51,7 +49,7 @@ use std::fmt::Debug;
 use byteorder::ByteOrder;
 
 mod de;
-mod error;
+pub mod error;
 mod ser;
 
 #[cfg(feature = "uasdls")]

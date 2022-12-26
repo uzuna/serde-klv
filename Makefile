@@ -1,7 +1,8 @@
 .PHONY: fmt
 fmt:
 	cargo fmt
-	cargo clippy --fix --allow-staged
+	git add -u
+	cargo clippy --fix --allow-staged --all-features
 
 .PHONY: check-fmt
 check-fmt:
@@ -14,4 +15,4 @@ bench:
 
 .PHONY: test
 test:
-	cargo test --all -- --nocapture
+	cargo test --all-features -- --nocapture

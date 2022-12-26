@@ -214,4 +214,25 @@ mod tests {
         let x = from_bytes::<UASDatalinkLS>(&s).unwrap();
         assert_eq!(t, x);
     }
+    #[test]
+    fn test_deserialize_error() {
+        let buf = vec![
+            0x06, 0x0e, 0x2b, 0x34, 0x02, 0x0b, 0x01, 0x01, 0x0e, 0x01, 0x03, 0x01, 0x01, 0x00,
+            0x00, 0x01, 0x01,
+        ];
+        let err = from_bytes::<UASDatalinkLS>(&buf).unwrap_err();
+        match err {
+            crate::error::Error::Key(_) => {}
+            _ => unreachable!(),
+        }
+        let buf = vec![
+            0x06, 0x0e, 0x2b, 0x34, 0x02, 0x0b, 0x01, 0x01, 0x0e, 0x01, 0x03, 0x01, 0x01, 0x00,
+            0x00, 0x00,
+        ];
+        let err = from_bytes::<UASDatalinkLS>(&buf).unwrap_err();
+        match err {
+            crate::error::Error::ContentLenght => {}
+            _ => unreachable!(),
+        }
+    }
 }

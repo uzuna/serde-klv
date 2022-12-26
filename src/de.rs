@@ -21,7 +21,7 @@ pub fn from_bytes<'a, T>(s: &'a [u8]) -> Result<T>
 where
     T: Deserialize<'a>,
 {
-    if s.len() < 16 {
+    if s.len() <= 16 {
         return Err(Error::ContentLenght);
     }
     let mut deserializer = Deserializer::from_bytes(s);
