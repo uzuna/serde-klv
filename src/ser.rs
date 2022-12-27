@@ -8,14 +8,14 @@ use crate::{
     LengthOctet,
 };
 
-struct Serializer {
+struct KLVSerializer {
     // This string starts empty and JSON is appended as values are serialized.
     universal_key: Vec<u8>,
     output: Vec<u8>,
     keys: BTreeSet<u8>,
 }
 
-impl Serializer {
+impl KLVSerializer {
     fn concat(self) -> Vec<u8> {
         let Self {
             universal_key: mut key,
@@ -38,7 +38,7 @@ pub fn to_bytes<T>(value: &T) -> Result<Vec<u8>>
 where
     T: Serialize,
 {
-    let mut serializer = Serializer {
+    let mut serializer = KLVSerializer {
         universal_key: vec![],
         output: vec![],
         keys: BTreeSet::new(),
@@ -48,7 +48,229 @@ where
     Ok(serializer.concat())
 }
 
-impl<'a> ser::Serializer for &'a mut Serializer {
+#[derive(Default, Debug, PartialEq, Eq)]
+enum VMode {
+    #[default]
+    Value,
+    LengthValue,
+}
+// TopLevelのシリアライザ
+struct SerializerRoot {
+    output: Vec<u8>,
+    mode: VMode,
+}
+
+impl<'a> ser::Serializer for &'a mut SerializerRoot {
+    type Ok = ();
+    type Error = Error;
+
+    type SerializeSeq = &'a mut KLVSerializer;
+    type SerializeTuple = &'a mut KLVSerializer;
+    type SerializeTupleStruct = &'a mut KLVSerializer;
+    type SerializeTupleVariant = &'a mut KLVSerializer;
+    type SerializeMap = &'a mut KLVSerializer;
+    type SerializeStruct = Self;
+    type SerializeStructVariant = &'a mut KLVSerializer;
+
+    fn serialize_bool(self, v: bool) -> Result<Self::Ok> {
+        if self.mode == VMode::LengthValue {
+            LengthOctet::length_to_buf(&mut self.output, 1).map_err(Error::IO)?;
+        }
+        self.output.push(v as u8);
+        Ok(())
+    }
+
+    fn serialize_i8(self, v: i8) -> Result<Self::Ok> {
+        if self.mode == VMode::LengthValue {
+            LengthOctet::length_to_buf(&mut self.output, 1).map_err(Error::IO)?;
+        }
+        self.output.push(v as u8);
+        Ok(())
+    }
+
+    fn serialize_i16(self, v: i16) -> Result<Self::Ok> {
+        if self.mode == VMode::LengthValue {
+            LengthOctet::length_to_buf(&mut self.output, 2).map_err(Error::IO)?;
+        }
+        self.output
+            .write_i16::<BigEndian>(v)
+            .map_err(|e| Error::Encode(format!("encodind error i16 {v} to byte. {e}")))?;
+        Ok(())
+    }
+
+    fn serialize_i32(self, v: i32) -> Result<Self::Ok> {
+        if self.mode == VMode::LengthValue {
+            LengthOctet::length_to_buf(&mut self.output, 4).map_err(Error::IO)?;
+        }
+        self.output
+            .write_i32::<BigEndian>(v)
+            .map_err(|e| Error::Encode(format!("encodind error i32 {v} to byte. {e}")))?;
+        Ok(())
+    }
+
+    fn serialize_i64(self, v: i64) -> Result<Self::Ok> {
+        if self.mode == VMode::LengthValue {
+            LengthOctet::length_to_buf(&mut self.output, 8).map_err(Error::IO)?;
+        }
+        self.output
+            .write_i64::<BigEndian>(v)
+            .map_err(|e| Error::Encode(format!("encodind error i64 {v} to byte. {e}")))?;
+        Ok(())
+    }
+
+    fn serialize_u8(self, _v: u8) -> Result<Self::Ok> {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_u16(self, _v: u16) -> Result<Self::Ok> {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_u32(self, _v: u32) -> Result<Self::Ok> {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_u64(self, _v: u64) -> Result<Self::Ok> {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_f32(self, _v: f32) -> Result<Self::Ok> {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_f64(self, _v: f64) -> Result<Self::Ok> {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_char(self, _v: char) -> Result<Self::Ok> {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_str(self, _v: &str) -> Result<Self::Ok> {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_bytes(self, _v: &[u8]) -> Result<Self::Ok> {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_none(self) -> Result<Self::Ok> {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_some<T: ?Sized>(self, _value: &T) -> Result<Self::Ok>
+    where
+        T: Serialize,
+    {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_unit(self) -> Result<Self::Ok> {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok> {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_unit_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+    ) -> Result<Self::Ok> {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_newtype_struct<T: ?Sized>(self, _name: &'static str, _value: &T) -> Result<Self::Ok>
+    where
+        T: Serialize,
+    {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_newtype_variant<T: ?Sized>(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        _value: &T,
+    ) -> Result<Self::Ok>
+    where
+        T: Serialize,
+    {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_tuple_struct(
+        self,
+        _name: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeTupleStruct> {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_tuple_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeTupleVariant> {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
+        Err(Error::NeedKey)
+    }
+
+    fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
+        Ok(self)
+    }
+
+    fn serialize_struct_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeStructVariant> {
+        Err(Error::NeedKey)
+    }
+}
+
+impl<'a> ser::SerializeStruct for &'a mut SerializerRoot {
+    type Ok = ();
+    type Error = Error;
+
+    fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        let key = key
+            .parse::<u8>()
+            .map_err(|e| Error::Key(format!("failed t kparse key str to u8 {} {}", key, e)))?;
+        // if !self.keys.insert(key) {
+        //     return Err(Error::Key(format!("already use field {}", key)));
+        // }
+        self.output.push(key);
+        value.serialize(&mut **self)
+    }
+
+    fn end(self) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl<'a> ser::Serializer for &'a mut KLVSerializer {
     // io::Writeを想定するのが良い?
     type Ok = ();
 
@@ -271,7 +493,7 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     }
 }
 
-impl<'a> ser::SerializeSeq for &'a mut Serializer {
+impl<'a> ser::SerializeSeq for &'a mut KLVSerializer {
     // Must match the `Ok` type of the serializer.
     type Ok = ();
     // Must match the `Error` type of the serializer.
@@ -291,7 +513,7 @@ impl<'a> ser::SerializeSeq for &'a mut Serializer {
     }
 }
 
-impl<'a> ser::SerializeTuple for &'a mut Serializer {
+impl<'a> ser::SerializeTuple for &'a mut KLVSerializer {
     type Ok = ();
     type Error = Error;
 
@@ -307,7 +529,7 @@ impl<'a> ser::SerializeTuple for &'a mut Serializer {
     }
 }
 
-impl<'a> ser::SerializeTupleStruct for &'a mut Serializer {
+impl<'a> ser::SerializeTupleStruct for &'a mut KLVSerializer {
     type Ok = ();
     type Error = Error;
 
@@ -323,7 +545,7 @@ impl<'a> ser::SerializeTupleStruct for &'a mut Serializer {
     }
 }
 
-impl<'a> ser::SerializeTupleVariant for &'a mut Serializer {
+impl<'a> ser::SerializeTupleVariant for &'a mut KLVSerializer {
     type Ok = ();
     type Error = Error;
 
@@ -339,7 +561,7 @@ impl<'a> ser::SerializeTupleVariant for &'a mut Serializer {
     }
 }
 
-impl<'a> ser::SerializeMap for &'a mut Serializer {
+impl<'a> ser::SerializeMap for &'a mut KLVSerializer {
     type Ok = ();
     type Error = Error;
 
@@ -362,7 +584,7 @@ impl<'a> ser::SerializeMap for &'a mut Serializer {
     }
 }
 
-impl<'a> ser::SerializeStruct for &'a mut Serializer {
+impl<'a> ser::SerializeStruct for &'a mut KLVSerializer {
     type Ok = ();
     type Error = Error;
 
@@ -385,7 +607,7 @@ impl<'a> ser::SerializeStruct for &'a mut Serializer {
     }
 }
 
-impl<'a> ser::SerializeStructVariant for &'a mut Serializer {
+impl<'a> ser::SerializeStructVariant for &'a mut KLVSerializer {
     type Ok = ();
     type Error = Error;
 
@@ -411,7 +633,7 @@ mod tests {
 
     use crate::de::{from_bytes, KLVMap};
     use crate::error::Error;
-    use crate::ser::to_bytes;
+    use crate::ser::{to_bytes, SerializerRoot};
 
     /// シリアライズ、デシリアライズで対称性のある構造体
     #[test]
@@ -793,5 +1015,39 @@ mod tests {
                 .checked_add(Duration::from_micros(micros))
                 .ok_or_else(|| serde::de::Error::custom("failed to deserialize systemtime"))
         }
+    }
+
+    #[test]
+    fn test_hierarchy() {
+        #[derive(Debug, Serialize, Deserialize, PartialEq)]
+        #[serde(rename = "X")]
+        struct TestParent {
+            #[serde(rename = "10")]
+            i8: i8,
+            #[serde(rename = "11")]
+            i64: i64,
+            #[serde(rename = "20")]
+            child: TestChild,
+        }
+        #[derive(Debug, Serialize, Deserialize, PartialEq)]
+        #[serde(rename = "X")]
+        struct TestChild {
+            #[serde(rename = "10")]
+            i16: i16,
+            #[serde(rename = "11")]
+            i32: i32,
+        }
+
+        let t = TestParent {
+            i8: -64,
+            i64: u32::MAX as i64 + 1,
+            child: TestChild { i16: 16, i32: 32 },
+        };
+        let mut serializer = SerializerRoot {
+            output: vec![],
+            mode: crate::ser::VMode::LengthValue,
+        };
+        t.serialize(&mut serializer).unwrap();
+        println!("buffer {:?}", serializer.output);
     }
 }

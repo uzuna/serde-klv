@@ -30,6 +30,8 @@ pub enum Error {
     ExpectedString,
     // unmatch length between length and content
     ExpectedMapEnd,
+    /// Can not serialize when has not key
+    NeedKey,
 }
 
 impl ser::Error for Error {
