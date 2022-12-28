@@ -58,7 +58,7 @@ struct SerializerRoot {
 impl Default for SerializerRoot {
     fn default() -> Self {
         Self {
-            output: vec![vec![]],
+            output: vec![vec![], vec![]],
             depth: 0,
         }
     }
@@ -69,16 +69,28 @@ impl SerializerRoot {
         self.depth += 1;
         self.output.push(vec![])
     }
-    fn end_depth(&mut self) {
+    fn end_depth(&mut self) -> Result<()> {
+        println!("end_depth {:?}", self.output);
         self.depth -= 1;
-        self.output.pop();
+        let _cache = self.output.pop().unwrap();
+        let mut klv = self.output.pop().unwrap();
+        let output = &mut self.output[self.depth];
+        let len = klv.len();
+        let _len = LengthOctet::length_to_buf(output, len).map_err(Error::IO)?;
+        output.append(&mut klv);
+        self.output.push(klv);
+        Ok(())
     }
     fn write_key(&mut self, key: u8) {
-        self.output[self.depth - 1].push(key)
+        println!("write_key d: {}, k: {}", self.depth, key);
+        self.output[self.depth].push(key)
+    }
+    fn write_universal_key(&mut self, key: &[u8]) {
+        self.output[self.depth].extend_from_slice(key)
     }
     fn get_cache(&mut self) -> Result<&mut Vec<u8>> {
         if self.depth > 0 {
-            Ok(&mut self.output[self.depth])
+            Ok(&mut self.output[self.depth + 1])
         } else {
             Err(Error::NeedKey)
         }
@@ -86,7 +98,7 @@ impl SerializerRoot {
     fn write_lv(&mut self) -> Result<()> {
         // self outputを&mut参照するのでmutable制限を超えるためにcacheを一度取り出す
         let mut cache = self.output.pop().unwrap();
-        let output = &mut self.output[self.depth - 1];
+        let output = &mut self.output[self.depth];
         let len = cache.len();
         let _len = LengthOctet::length_to_buf(output, len).map_err(Error::IO)?;
         output.append(&mut cache);
@@ -178,22 +190,22 @@ impl<'a> ser::Serializer for &'a mut SerializerRoot {
     }
 
     fn serialize_none(self) -> Result<Self::Ok> {
-        Err(Error::NeedKey)
+        Ok(())
     }
 
-    fn serialize_some<T: ?Sized>(self, _value: &T) -> Result<Self::Ok>
+    fn serialize_some<T: ?Sized>(self, value: &T) -> Result<Self::Ok>
     where
         T: Serialize,
     {
-        Err(Error::NeedKey)
+        value.serialize(self)
     }
 
     fn serialize_unit(self) -> Result<Self::Ok> {
-        Err(Error::NeedKey)
+        Ok(())
     }
 
     fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok> {
-        Err(Error::NeedKey)
+        Ok(())
     }
 
     fn serialize_unit_variant(
@@ -202,7 +214,7 @@ impl<'a> ser::Serializer for &'a mut SerializerRoot {
         _variant_index: u32,
         _variant: &'static str,
     ) -> Result<Self::Ok> {
-        Err(Error::NeedKey)
+        unimplemented!()
     }
 
     fn serialize_newtype_struct<T: ?Sized>(
@@ -213,7 +225,7 @@ impl<'a> ser::Serializer for &'a mut SerializerRoot {
     where
         T: Serialize,
     {
-        Err(Error::NeedKey)
+        unimplemented!()
     }
 
     fn serialize_newtype_variant<T: ?Sized>(
@@ -226,15 +238,15 @@ impl<'a> ser::Serializer for &'a mut SerializerRoot {
     where
         T: Serialize,
     {
-        Err(Error::NeedKey)
+        unimplemented!()
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
-        Err(Error::NeedKey)
+        unimplemented!()
     }
 
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
-        Err(Error::NeedKey)
+        unimplemented!()
     }
 
     fn serialize_tuple_struct(
@@ -242,7 +254,7 @@ impl<'a> ser::Serializer for &'a mut SerializerRoot {
         _name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleStruct> {
-        Err(Error::NeedKey)
+        unimplemented!()
     }
 
     fn serialize_tuple_variant(
@@ -252,14 +264,18 @@ impl<'a> ser::Serializer for &'a mut SerializerRoot {
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
-        Err(Error::NeedKey)
+        unimplemented!()
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
-        Err(Error::NeedKey)
+        unimplemented!()
     }
 
-    fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
+    fn serialize_struct(self, name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
+        println!("serialize_struct");
+        if self.depth == 0 {
+            self.write_universal_key(name.as_bytes());
+        }
         self.next_depth();
         Ok(self)
     }
@@ -271,7 +287,7 @@ impl<'a> ser::Serializer for &'a mut SerializerRoot {
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant> {
-        Err(Error::NeedKey)
+        unimplemented!()
     }
 }
 
@@ -289,17 +305,18 @@ impl<'a> ser::SerializeStruct for &'a mut SerializerRoot {
         // if !self.keys.insert(key) {
         //     return Err(Error::Key(format!("already use field {}", key)));
         // }
-        // cacheに書き出し
-        value.serialize(&mut **self)?;
+
         // key書き出し
         self.write_key(key);
+        // cacheに書き出し
+        value.serialize(&mut **self)?;
         // lv書き出し
         self.write_lv()
     }
 
     fn end(self) -> Result<()> {
         // まだ階層が低い。ここではStructのKeyを書いてCacheをLVする必要がある
-        self.end_depth();
+        self.end_depth()?;
         Ok(())
     }
 }
@@ -1054,17 +1071,17 @@ mod tests {
     #[test]
     fn test_hierarchy() {
         #[derive(Debug, Serialize, Deserialize, PartialEq)]
-        #[serde(rename = "X")]
+        #[serde(rename = "XYZZ")]
         struct TestParent {
             #[serde(rename = "10")]
             i8: i8,
             #[serde(rename = "11")]
             i64: i64,
             #[serde(rename = "20")]
-            child: TestChild,
+            child: Option<TestChild>,
         }
         #[derive(Debug, Serialize, Deserialize, PartialEq)]
-        #[serde(rename = "X")]
+        #[serde(rename = "XYZZ")]
         struct TestChild {
             #[serde(rename = "10")]
             i16: i16,
@@ -1074,8 +1091,9 @@ mod tests {
 
         let t = TestParent {
             i8: -64,
-            i64: u32::MAX as i64 + 1,
-            child: TestChild { i16: 16, i32: 32 },
+            i64: 1 + 2_i64.pow(16) + 2_i64.pow(32) + 2_i64.pow(48),
+            child: Some(TestChild { i16: 16, i32: 32 }),
+            // child: None,
         };
         let mut serializer = SerializerRoot::default();
         t.serialize(&mut serializer).unwrap();
