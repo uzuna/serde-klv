@@ -352,7 +352,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     {
         let len = self.input[self.position];
         let v = BigEndian::read_u32(&self.input[self.position + 1..]);
-        let c = std::char::from_u32(v as u32);
+        let c = std::char::from_u32(v);
         if let Some(x) = c {
             self.position += 1 + len as usize;
             visitor.visit_char(x)

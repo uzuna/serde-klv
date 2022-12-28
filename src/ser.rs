@@ -48,18 +48,56 @@ where
     Ok(serializer.concat())
 }
 
-#[derive(Default, Debug, PartialEq, Eq)]
-enum VMode {
-    #[default]
-    Value,
-    LengthValue,
-}
 // TopLevelのシリアライザ
+#[derive(Debug)]
 struct SerializerRoot {
-    output: Vec<u8>,
-    mode: VMode,
+    output: Vec<Vec<u8>>,
+    depth: usize,
 }
 
+impl Default for SerializerRoot {
+    fn default() -> Self {
+        Self {
+            output: vec![vec![]],
+            depth: 0,
+        }
+    }
+}
+
+impl SerializerRoot {
+    fn next_depth(&mut self) {
+        self.depth += 1;
+        self.output.push(vec![])
+    }
+    fn end_depth(&mut self) {
+        self.depth -= 1;
+        self.output.pop();
+    }
+    fn write_key(&mut self, key: u8) {
+        self.output[self.depth - 1].push(key)
+    }
+    fn get_cache(&mut self) -> Result<&mut Vec<u8>> {
+        if self.depth > 0 {
+            Ok(&mut self.output[self.depth])
+        } else {
+            Err(Error::NeedKey)
+        }
+    }
+    fn write_lv(&mut self) -> Result<()> {
+        // self outputを&mut参照するのでmutable制限を超えるためにcacheを一度取り出す
+        let mut cache = self.output.pop().unwrap();
+        let output = &mut self.output[self.depth - 1];
+        let len = cache.len();
+        let _len = LengthOctet::length_to_buf(output, len).map_err(Error::IO)?;
+        output.append(&mut cache);
+        self.output.push(cache);
+        Ok(())
+    }
+}
+
+// TODO
+// V変換を普通にやる
+// StructはV結果を見てLを決める
 impl<'a> ser::Serializer for &'a mut SerializerRoot {
     type Ok = ();
     type Error = Error;
@@ -73,46 +111,31 @@ impl<'a> ser::Serializer for &'a mut SerializerRoot {
     type SerializeStructVariant = &'a mut KLVSerializer;
 
     fn serialize_bool(self, v: bool) -> Result<Self::Ok> {
-        if self.mode == VMode::LengthValue {
-            LengthOctet::length_to_buf(&mut self.output, 1).map_err(Error::IO)?;
-        }
-        self.output.push(v as u8);
+        self.get_cache()?.push(v as u8);
         Ok(())
     }
 
     fn serialize_i8(self, v: i8) -> Result<Self::Ok> {
-        if self.mode == VMode::LengthValue {
-            LengthOctet::length_to_buf(&mut self.output, 1).map_err(Error::IO)?;
-        }
-        self.output.push(v as u8);
+        self.get_cache()?.push(v as u8);
         Ok(())
     }
 
     fn serialize_i16(self, v: i16) -> Result<Self::Ok> {
-        if self.mode == VMode::LengthValue {
-            LengthOctet::length_to_buf(&mut self.output, 2).map_err(Error::IO)?;
-        }
-        self.output
+        self.get_cache()?
             .write_i16::<BigEndian>(v)
             .map_err(|e| Error::Encode(format!("encodind error i16 {v} to byte. {e}")))?;
         Ok(())
     }
 
     fn serialize_i32(self, v: i32) -> Result<Self::Ok> {
-        if self.mode == VMode::LengthValue {
-            LengthOctet::length_to_buf(&mut self.output, 4).map_err(Error::IO)?;
-        }
-        self.output
+        self.get_cache()?
             .write_i32::<BigEndian>(v)
             .map_err(|e| Error::Encode(format!("encodind error i32 {v} to byte. {e}")))?;
         Ok(())
     }
 
     fn serialize_i64(self, v: i64) -> Result<Self::Ok> {
-        if self.mode == VMode::LengthValue {
-            LengthOctet::length_to_buf(&mut self.output, 8).map_err(Error::IO)?;
-        }
-        self.output
+        self.get_cache()?
             .write_i64::<BigEndian>(v)
             .map_err(|e| Error::Encode(format!("encodind error i64 {v} to byte. {e}")))?;
         Ok(())
@@ -182,7 +205,11 @@ impl<'a> ser::Serializer for &'a mut SerializerRoot {
         Err(Error::NeedKey)
     }
 
-    fn serialize_newtype_struct<T: ?Sized>(self, _name: &'static str, _value: &T) -> Result<Self::Ok>
+    fn serialize_newtype_struct<T: ?Sized>(
+        self,
+        _name: &'static str,
+        _value: &T,
+    ) -> Result<Self::Ok>
     where
         T: Serialize,
     {
@@ -233,6 +260,7 @@ impl<'a> ser::Serializer for &'a mut SerializerRoot {
     }
 
     fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
+        self.next_depth();
         Ok(self)
     }
 
@@ -261,11 +289,17 @@ impl<'a> ser::SerializeStruct for &'a mut SerializerRoot {
         // if !self.keys.insert(key) {
         //     return Err(Error::Key(format!("already use field {}", key)));
         // }
-        self.output.push(key);
-        value.serialize(&mut **self)
+        // cacheに書き出し
+        value.serialize(&mut **self)?;
+        // key書き出し
+        self.write_key(key);
+        // lv書き出し
+        self.write_lv()
     }
 
     fn end(self) -> Result<()> {
+        // まだ階層が低い。ここではStructのKeyを書いてCacheをLVする必要がある
+        self.end_depth();
         Ok(())
     }
 }
@@ -1043,10 +1077,7 @@ mod tests {
             i64: u32::MAX as i64 + 1,
             child: TestChild { i16: 16, i32: 32 },
         };
-        let mut serializer = SerializerRoot {
-            output: vec![],
-            mode: crate::ser::VMode::LengthValue,
-        };
+        let mut serializer = SerializerRoot::default();
         t.serialize(&mut serializer).unwrap();
         println!("buffer {:?}", serializer.output);
     }
