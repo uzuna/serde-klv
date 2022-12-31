@@ -106,7 +106,7 @@ impl<'a> ser::Serializer for &'a mut SerializerRoot {
     type Ok = ();
     type Error = Error;
 
-    type SerializeSeq = &'a mut KLVSerializer;
+    type SerializeSeq = Self;
     type SerializeTuple = &'a mut KLVSerializer;
     type SerializeTupleStruct = &'a mut KLVSerializer;
     type SerializeTupleVariant = &'a mut KLVSerializer;
@@ -132,6 +132,7 @@ impl<'a> ser::Serializer for &'a mut SerializerRoot {
     }
 
     fn serialize_i32(self, v: i32) -> Result<Self::Ok> {
+        println!("serialize_i32 {}", v);
         self.get_cache()?
             .write_i32::<BigEndian>(v)
             .map_err(|e| Error::Encode(format!("encodind error i32 {v} to byte. {e}")))?;
@@ -234,7 +235,9 @@ impl<'a> ser::Serializer for &'a mut SerializerRoot {
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
-        unimplemented!()
+        println!("serialize_seq");
+        self.next_depth();
+        Ok(self)
     }
 
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
@@ -305,6 +308,24 @@ impl<'a> ser::SerializeStruct for &'a mut SerializerRoot {
 
     fn end(self) -> Result<()> {
         // まだ階層が低い。ここではStructのKeyを書いてCacheをLVする必要がある
+        self.end_depth()?;
+        Ok(())
+    }
+}
+
+impl<'a> ser::SerializeSeq for &'a mut SerializerRoot {
+    type Ok = ();
+    type Error = Error;
+
+    fn serialize_element<T: ?Sized>(&mut self, value: &T) -> Result<()>
+    where
+        T: Serialize,
+    {
+        value.serialize(&mut **self)
+    }
+
+    fn end(self) -> Result<()> {
+        self.write_lv()?;
         self.end_depth()?;
         Ok(())
     }
@@ -1058,7 +1079,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hierarchy() {
+    fn test_struct() {
         #[derive(Debug, Serialize, Deserialize, PartialEq)]
         #[serde(rename = "XYZZ")]
         struct TestParent {
@@ -1082,6 +1103,34 @@ mod tests {
             i8: -64,
             i64: 1 + 2_i64.pow(16) + 2_i64.pow(32) + 2_i64.pow(48),
             child: Some(TestChild { i16: 16, i32: 32 }),
+            // child: None,
+        };
+        let mut serializer = SerializerRoot::default();
+        t.serialize(&mut serializer).unwrap();
+        println!("buffer {:?}", serializer.output);
+    }
+    #[test]
+    fn test_sequence() {
+        #[derive(Debug, Serialize, Deserialize, PartialEq)]
+        #[serde(rename = "XYZZ")]
+        struct TestParent {
+            #[serde(rename = "10")]
+            i8: i8,
+            #[serde(rename = "11")]
+            i64: i64,
+            #[serde(rename = "20")]
+            seq: Option<Vec<i32>>,
+        }
+
+        let t = TestParent {
+            i8: -64,
+            i64: 1 + 2_i64.pow(16) + 2_i64.pow(32) + 2_i64.pow(48),
+            seq: Some(vec![
+                1,
+                2_i32.pow(8) + 1,
+                2_i32.pow(16) + 1,
+                2_i32.pow(24) + 1,
+            ]),
             // child: None,
         };
         let mut serializer = SerializerRoot::default();
