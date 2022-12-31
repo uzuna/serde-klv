@@ -30,6 +30,16 @@
 //!     none_skip_none: Option<u16>,
 //!     #[serde(rename = "60")]
 //!     str: &'a str,
+//!     #[serde(rename = "70")]
+//!     child: TestChild,
+//! }
+//!
+//! #[derive(Debug, Serialize, Deserialize, PartialEq)]
+//! struct TestChild {
+//!     #[serde(rename = "10")]
+//!     x: i8,
+//!     #[serde(rename = "11")]
+//!     y: f32,
 //! }
 //!
 //! let t = TestStruct {
@@ -38,6 +48,7 @@
 //!     none_skip_some: Some(2016),
 //!     none_skip_none: None,
 //!     str: "this is string",
+//!     child: TestChild{x: -64, y: 1.23}
 //! };
 //! let buf = to_bytes(&t).unwrap();
 //! let x = from_bytes::<TestStruct>(&buf).unwrap();

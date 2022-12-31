@@ -279,8 +279,8 @@ impl<'a> ser::Serializer for &'a mut KLVSerializer {
     }
 
     fn serialize_struct(self, name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
-        check_universal_key_len(name)?;
         if self.depth == 0 {
+            check_universal_key_len(name)?;
             self.universal_key.extend_from_slice(name.as_bytes())
         }
         self.next_depth();
