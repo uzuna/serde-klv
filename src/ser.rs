@@ -107,7 +107,7 @@ impl<'a> ser::Serializer for &'a mut SerializerRoot {
     type Error = Error;
 
     type SerializeSeq = Self;
-    type SerializeTuple = &'a mut KLVSerializer;
+    type SerializeTuple = Self;
     type SerializeTupleStruct = &'a mut KLVSerializer;
     type SerializeTupleVariant = &'a mut KLVSerializer;
     type SerializeMap = &'a mut KLVSerializer;
@@ -236,12 +236,14 @@ impl<'a> ser::Serializer for &'a mut SerializerRoot {
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
         println!("serialize_seq");
-        self.next_depth();
+        // self.next_depth();
         Ok(self)
     }
 
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
-        unimplemented!()
+        println!("serialize_tuple");
+        // self.next_depth();
+        Ok(self)
     }
 
     fn serialize_tuple_struct(
@@ -325,8 +327,26 @@ impl<'a> ser::SerializeSeq for &'a mut SerializerRoot {
     }
 
     fn end(self) -> Result<()> {
-        self.write_lv()?;
-        self.end_depth()?;
+        // self.write_lv()?;
+        // self.end_depth()?;
+        Ok(())
+    }
+}
+
+impl<'a> ser::SerializeTuple for &'a mut SerializerRoot {
+    type Ok = ();
+    type Error = Error;
+
+    fn serialize_element<T: ?Sized>(&mut self, value: &T) -> Result<()>
+    where
+        T: Serialize,
+    {
+        value.serialize(&mut **self)
+    }
+
+    fn end(self) -> Result<Self::Ok> {
+        // self.write_lv()?;
+        // self.end_depth()?;
         Ok(())
     }
 }
@@ -1135,6 +1155,44 @@ mod tests {
         };
         let mut serializer = SerializerRoot::default();
         t.serialize(&mut serializer).unwrap();
-        println!("buffer {:?}", serializer.output);
+        assert!(find_subsequence(
+            serializer.get_cache().unwrap(),
+            &[20, 16, 0, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1]
+        )
+        .is_some())
+    }
+
+    #[test]
+    fn test_tuple() {
+        #[derive(Debug, Serialize, Deserialize, PartialEq)]
+        #[serde(rename = "XYZZ")]
+        struct TestParent {
+            #[serde(rename = "10")]
+            i8: i8,
+            #[serde(rename = "11")]
+            i64: i64,
+            #[serde(rename = "20")]
+            seq: Option<(i8, i16, i32, i64)>,
+        }
+
+        let t = TestParent {
+            i8: -64,
+            i64: 1 + 2_i64.pow(16) + 2_i64.pow(32) + 2_i64.pow(48),
+            seq: Some((i8::MIN, i16::MIN, i32::MIN, i64::MIN)),
+            // child: None,
+        };
+        let mut serializer = SerializerRoot::default();
+        t.serialize(&mut serializer).unwrap();
+        assert!(find_subsequence(
+            serializer.get_cache().unwrap(),
+            &[20, 15, 128, 128, 0, 128, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0]
+        )
+        .is_some())
+    }
+
+    fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+        haystack
+            .windows(needle.len())
+            .position(|window| window == needle)
     }
 }
