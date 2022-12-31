@@ -4,6 +4,7 @@ use byteorder::{BigEndian, WriteBytesExt};
 use serde::{ser, Serialize};
 
 use crate::{
+    check_universal_key_len,
     error::{Error, Result},
     LengthOctet,
 };
@@ -284,15 +285,7 @@ impl<'a> ser::Serializer for &'a mut KLVSerializer {
 
     fn serialize_struct(self, name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
         println!("serialize_struct");
-        match name.len() {
-            1 | 2 | 4 | 16 => {}
-            _ => {
-                return Err(Error::Key(format!(
-                    "universal key support length only {{1,2,4,16}} got {}",
-                    name
-                )))
-            }
-        }
+        check_universal_key_len(name)?;
         if self.depth == 0 {
             self.universal_key.extend_from_slice(name.as_bytes())
         }
@@ -452,55 +445,6 @@ mod tests {
     use crate::de::{from_bytes, KLVMap};
     use crate::error::Error;
     use crate::ser::{to_bytes, KLVSerializer};
-
-    /// シリアライズ、デシリアライズで対称性のある構造体
-    #[test]
-    fn test_serialize_symmetry_numbers() {
-        #[derive(Debug, Serialize, Deserialize, PartialEq)]
-        // こうすると指定しやすいけどASCII文字以外が使えないのが難点
-        #[serde(rename = "TESTDATA00000000")]
-        struct Test {
-            #[serde(rename = "128")]
-            x: bool,
-            #[serde(rename = "10")]
-            u8: u8,
-            #[serde(rename = "11")]
-            u16: u16,
-            #[serde(rename = "12")]
-            u32: u32,
-            #[serde(rename = "13")]
-            u64: u64,
-            #[serde(rename = "15")]
-            i8: i8,
-            #[serde(rename = "16")]
-            i16: i16,
-            #[serde(rename = "17")]
-            i32: i32,
-            #[serde(rename = "18")]
-            i64: i64,
-            #[serde(rename = "20")]
-            f32: f32,
-            #[serde(rename = "21")]
-            f64: f64,
-        }
-
-        let t = Test {
-            x: true,
-            u8: 8,
-            u16: 16,
-            u32: 32,
-            u64: 64,
-            i8: -8,
-            i16: -16,
-            i32: -32,
-            i64: -64,
-            f32: 0.1,
-            f64: -123.45,
-        };
-        let s = to_bytes(&t).unwrap();
-        let x = from_bytes::<Test>(&s).unwrap();
-        assert_eq!(t, x);
-    }
 
     #[test]
     fn test_serialize_error_by_key() {
@@ -869,7 +813,10 @@ mod tests {
             serializer.get_cache().unwrap(),
             &[20, 10, 10, 2, 0, 16, 11, 4, 0, 0, 0, 32]
         )
-        .is_some())
+        .is_some());
+        let s = serializer.concat();
+        let x = from_bytes::<TestParent>(&s).unwrap();
+        assert_eq!(t, x);
     }
     #[test]
     fn test_sequence() {
@@ -901,7 +848,10 @@ mod tests {
             serializer.get_cache().unwrap(),
             &[20, 16, 0, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1]
         )
-        .is_some())
+        .is_some());
+        let s = serializer.concat();
+        let x = from_bytes::<TestParent>(&s).unwrap();
+        assert_eq!(t, x);
     }
 
     #[test]

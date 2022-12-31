@@ -127,6 +127,16 @@ impl LengthOctet {
     }
 }
 
+fn check_universal_key_len(name: &str) -> Result<usize, error::Error> {
+    match name.len() {
+        1 | 2 | 4 | 16 => Ok(name.len()),
+        _ => Err(error::Error::Key(format!(
+            "universal key support length only {{1,2,4,16}} got {}",
+            name
+        ))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
