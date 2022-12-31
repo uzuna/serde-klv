@@ -58,7 +58,7 @@ struct SerializerRoot {
 impl Default for SerializerRoot {
     fn default() -> Self {
         Self {
-            output: vec![vec![], vec![]],
+            output: vec![vec![]],
             depth: 0,
         }
     }
@@ -71,34 +71,26 @@ impl SerializerRoot {
     }
     fn end_depth(&mut self) -> Result<()> {
         println!("end_depth {:?}", self.output);
-        self.depth -= 1;
         let _cache = self.output.pop().unwrap();
-        let mut klv = self.output.pop().unwrap();
-        let output = &mut self.output[self.depth];
-        let len = klv.len();
-        let _len = LengthOctet::length_to_buf(output, len).map_err(Error::IO)?;
-        output.append(&mut klv);
-        self.output.push(klv);
+        self.depth -= 1;
         Ok(())
     }
     fn write_key(&mut self, key: u8) {
         println!("write_key d: {}, k: {}", self.depth, key);
-        self.output[self.depth].push(key)
-    }
-    fn write_universal_key(&mut self, key: &[u8]) {
-        self.output[self.depth].extend_from_slice(key)
+        self.output[self.depth - 1].push(key)
     }
     fn get_cache(&mut self) -> Result<&mut Vec<u8>> {
-        if self.depth > 0 {
-            Ok(&mut self.output[self.depth + 1])
-        } else {
-            Err(Error::NeedKey)
-        }
+        Ok(self.output.last_mut().unwrap())
+        // if self.depth > 0 {
+        //     Ok(self.output.last_mut().unwrap())
+        // } else {
+        //     Err(Error::NeedKey)
+        // }
     }
     fn write_lv(&mut self) -> Result<()> {
         // self outputを&mut参照するのでmutable制限を超えるためにcacheを一度取り出す
         let mut cache = self.output.pop().unwrap();
-        let output = &mut self.output[self.depth];
+        let output = self.output.last_mut().unwrap();
         let len = cache.len();
         let _len = LengthOctet::length_to_buf(output, len).map_err(Error::IO)?;
         output.append(&mut cache);
@@ -271,11 +263,8 @@ impl<'a> ser::Serializer for &'a mut SerializerRoot {
         unimplemented!()
     }
 
-    fn serialize_struct(self, name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
+    fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
         println!("serialize_struct");
-        if self.depth == 0 {
-            self.write_universal_key(name.as_bytes());
-        }
         self.next_depth();
         Ok(self)
     }
@@ -306,10 +295,10 @@ impl<'a> ser::SerializeStruct for &'a mut SerializerRoot {
         //     return Err(Error::Key(format!("already use field {}", key)));
         // }
 
-        // key書き出し
-        self.write_key(key);
         // cacheに書き出し
         value.serialize(&mut **self)?;
+        // key書き出し
+        self.write_key(key);
         // lv書き出し
         self.write_lv()
     }
