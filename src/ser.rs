@@ -266,7 +266,8 @@ impl<'a> ser::Serializer for &'a mut KLVSerializer {
         _name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleStruct> {
-        unimplemented!()
+        println!("serialize_tuple_struct");
+        Ok(self)
     }
 
     fn serialize_tuple_variant(
@@ -879,7 +880,44 @@ mod tests {
             serializer.get_cache().unwrap(),
             &[20, 15, 128, 128, 0, 128, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0]
         )
-        .is_some())
+        .is_some());
+        let s = serializer.concat();
+        let x = from_bytes::<TestParent>(&s).unwrap();
+        assert_eq!(t, x);
+    }
+
+    #[test]
+    fn test_tuple_struct() {
+        #[derive(Debug, Serialize, Deserialize, PartialEq)]
+        struct Abxy(i8, i16, i32, i64);
+
+        #[derive(Debug, Serialize, Deserialize, PartialEq)]
+        #[serde(rename = "XYZZ")]
+        struct TestParent {
+            #[serde(rename = "10")]
+            i8: i8,
+            #[serde(rename = "11")]
+            i64: i64,
+            #[serde(rename = "20")]
+            seq: Option<Abxy>,
+        }
+
+        let t = TestParent {
+            i8: -64,
+            i64: 1 + 2_i64.pow(16) + 2_i64.pow(32) + 2_i64.pow(48),
+            seq: Some(Abxy(i8::MIN, i16::MIN, i32::MIN, i64::MIN)),
+            // child: None,
+        };
+        let mut serializer = KLVSerializer::default();
+        t.serialize(&mut serializer).unwrap();
+        assert!(find_subsequence(
+            serializer.get_cache().unwrap(),
+            &[20, 15, 128, 128, 0, 128, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0]
+        )
+        .is_some());
+        let s = serializer.concat();
+        let x = from_bytes::<TestParent>(&s).unwrap();
+        assert_eq!(t, x);
     }
 
     #[ignore]
