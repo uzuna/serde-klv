@@ -33,6 +33,8 @@ pub enum Error {
     ExpectedSeqEnd,
     /// Can not serialize when has not key
     NeedKey,
+    /// KLV format is not support Map
+    Unsupported(String),
 }
 
 impl ser::Error for Error {

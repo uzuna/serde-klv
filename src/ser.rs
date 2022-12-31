@@ -20,12 +20,22 @@ where
     Ok(serializer.concat())
 }
 
-// TopLevelのシリアライザ
+// KLVシリアライザ
+// 基本的にはKLVのうちVを行う
+// structに限りKLの処理が必要でTopLevelだけはuniversal_keyで保持する
+// それより深い階層では個別のキーではなく親のkey
 #[derive(Debug)]
 struct KLVSerializer {
     universal_key: Vec<u8>,
-    output: Vec<Vec<u8>>,
+    // 現在の階層深さ。KLのためには1階層以上でなければならない
     depth: usize,
+    // 各階層ごとのKLVシリアライズ結果
+    // KLVはVをシリアライズするまでLが分からないため
+    // depth階層のbufferをVのシリアライズ領域に使い
+    // Vのシリアライズが終わったらその長さを元にLを算出し
+    // depth-1階層にKLVで書き込む
+    output: Vec<Vec<u8>>,
+    // 各層毎の使用済みKeyマップ
     keys: Vec<BTreeSet<u8>>,
 }
 
@@ -33,8 +43,8 @@ impl Default for KLVSerializer {
     fn default() -> Self {
         Self {
             universal_key: vec![],
-            output: vec![vec![]],
             depth: 0,
+            output: vec![vec![]],
             keys: vec![BTreeSet::new()],
         }
     }
@@ -205,11 +215,11 @@ impl<'a> ser::Serializer for &'a mut KLVSerializer {
     }
 
     fn serialize_unit(self) -> Result<Self::Ok> {
-        Ok(())
+        self.serialize_none()
     }
 
     fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok> {
-        Ok(())
+        self.serialize_none()
     }
 
     fn serialize_unit_variant(
@@ -253,7 +263,7 @@ impl<'a> ser::Serializer for &'a mut KLVSerializer {
     }
 
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
-        Ok(self)
+        self.serialize_seq(None)
     }
 
     fn serialize_tuple_struct(
@@ -261,7 +271,7 @@ impl<'a> ser::Serializer for &'a mut KLVSerializer {
         _name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleStruct> {
-        Ok(self)
+        self.serialize_seq(None)
     }
 
     fn serialize_tuple_variant(
@@ -275,7 +285,7 @@ impl<'a> ser::Serializer for &'a mut KLVSerializer {
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
-        unimplemented!()
+        Err(Error::Unsupported("map is not supported".to_string()))
     }
 
     fn serialize_struct(self, name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
@@ -310,11 +320,11 @@ impl<'a> ser::SerializeStruct for &'a mut KLVSerializer {
             .parse::<u8>()
             .map_err(|e| Error::Key(format!("failed t kparse key str to u8 {} {}", key, e)))?;
 
-        // cacheに書き出し
+        // cacheにValue書き出し
         value.serialize(&mut **self)?;
-        // key書き出し
+        // outputにKey書き出し
         self.write_key(key)?;
-        // lv書き出し
+        // outputにLengthValue書き出し
         self.write_lv()
     }
 
@@ -325,6 +335,8 @@ impl<'a> ser::SerializeStruct for &'a mut KLVSerializer {
     }
 }
 
+// 個別のLは省略する
+// LはSeq全体長のみ、Vは全て同じ型とする
 impl<'a> ser::SerializeSeq for &'a mut KLVSerializer {
     type Ok = ();
     type Error = Error;
@@ -341,6 +353,8 @@ impl<'a> ser::SerializeSeq for &'a mut KLVSerializer {
     }
 }
 
+// Seqと同じく個別のLを省略する
+// シリアライズ、デシリアライズの型が同じなら長さは自明となる
 impl<'a> ser::SerializeTuple for &'a mut KLVSerializer {
     type Ok = ();
     type Error = Error;
@@ -393,18 +407,18 @@ impl<'a> ser::SerializeMap for &'a mut KLVSerializer {
     type Ok = ();
     type Error = Error;
 
-    fn serialize_key<T>(&mut self, key: &T) -> Result<()>
+    fn serialize_key<T>(&mut self, _key: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        key.serialize(&mut **self)
+        unimplemented!()
     }
 
-    fn serialize_value<T>(&mut self, value: &T) -> Result<()>
+    fn serialize_value<T>(&mut self, _value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        value.serialize(&mut **self)
+        unimplemented!()
     }
 
     fn end(self) -> Result<()> {
