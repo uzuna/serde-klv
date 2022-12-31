@@ -47,7 +47,6 @@ impl KLVSerializer {
         self.keys.push(BTreeSet::new());
     }
     fn end_depth(&mut self) -> Result<()> {
-        println!("end_depth {:?}", self.output);
         let _cache = self.output.pop().unwrap();
         let _keys = self.keys.pop().unwrap();
         self.depth -= 1;
@@ -65,7 +64,6 @@ impl KLVSerializer {
         } else {
             return Err(Error::Message("has not key map".to_string()));
         }
-        println!("write_key d: {}, k: {}", index, key);
         self.output[index].push(key);
         Ok(())
     }
@@ -128,7 +126,6 @@ impl<'a> ser::Serializer for &'a mut KLVSerializer {
     }
 
     fn serialize_i32(self, v: i32) -> Result<Self::Ok> {
-        println!("serialize_i32 {}", v);
         self.get_cache()?
             .write_i32::<BigEndian>(v)
             .map_err(|e| Error::Encode(format!("encodind error i32 {v} to byte. {e}")))?;
@@ -155,7 +152,6 @@ impl<'a> ser::Serializer for &'a mut KLVSerializer {
     }
 
     fn serialize_u32(self, v: u32) -> Result<Self::Ok> {
-        println!("serialize_u32 {}", v);
         self.get_cache()?
             .write_u32::<BigEndian>(v)
             .map_err(|e| Error::Encode(format!("encodind error u32 {v} to byte. {e}")))?;
@@ -223,8 +219,9 @@ impl<'a> ser::Serializer for &'a mut KLVSerializer {
         _variant: &'static str,
     ) -> Result<Self::Ok> {
         todo!()
-        // println!("serialize_unit_variant {} {}", _name, _variant);
-        // variant_index.serialize(self)
+        // // UnitなEnumは名前が固定で実装に依存して値が可変であるためstrで保持するのが一般的
+        // println!("serialize_unit_variant {} {}", _name, variant);
+        // self.serialize_str(variant)
     }
 
     fn serialize_newtype_struct<T: ?Sized>(
@@ -252,12 +249,10 @@ impl<'a> ser::Serializer for &'a mut KLVSerializer {
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
-        println!("serialize_seq");
         Ok(self)
     }
 
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
-        println!("serialize_tuple");
         Ok(self)
     }
 
@@ -266,7 +261,6 @@ impl<'a> ser::Serializer for &'a mut KLVSerializer {
         _name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleStruct> {
-        println!("serialize_tuple_struct");
         Ok(self)
     }
 
@@ -285,7 +279,6 @@ impl<'a> ser::Serializer for &'a mut KLVSerializer {
     }
 
     fn serialize_struct(self, name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
-        println!("serialize_struct");
         check_universal_key_len(name)?;
         if self.depth == 0 {
             self.universal_key.extend_from_slice(name.as_bytes())
@@ -539,7 +532,6 @@ mod tests {
             str: "this is str\09joi4t@",
         };
         let s = to_bytes(&t).unwrap();
-        println!("{:?}", s);
         let x = from_bytes::<TestStr>(&s).unwrap();
         assert_eq!(t, x);
     }
@@ -922,12 +914,12 @@ mod tests {
 
     #[ignore]
     #[test]
-    fn test_unit_variant() {
+    fn test_enum() {
         #[repr(u8)]
         #[derive(Debug, Serialize, Deserialize, PartialEq)]
         enum V {
             A = 1,
-            B = 20,
+            MediumLongVariant = 20,
         }
         #[derive(Debug, Serialize, Deserialize, PartialEq)]
         #[serde(rename = "XYZZ")]
@@ -937,10 +929,23 @@ mod tests {
             #[serde(rename = "11")]
             vb: V,
         }
-        let t = TestVariant { va: V::A, vb: V::B };
+        let t = TestVariant {
+            va: V::A,
+            vb: V::MediumLongVariant,
+        };
         let mut serializer = KLVSerializer::default();
         t.serialize(&mut serializer).unwrap();
-        println!("{:?}", serializer.get_cache().unwrap());
+        assert!(find_subsequence(
+            serializer.get_cache().unwrap(),
+            &[
+                10, 1, 65, 11, 17, 77, 101, 100, 105, 117, 109, 76, 111, 110, 103, 86, 97, 114,
+                105, 97, 110, 116
+            ]
+        )
+        .is_some());
+        let s = serializer.concat();
+        let x = from_bytes::<TestVariant>(&s).unwrap();
+        assert_eq!(t, x);
     }
 
     fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {

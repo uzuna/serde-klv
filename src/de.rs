@@ -21,17 +21,6 @@ impl<'de> Deserializer<'de> {
             next_len: vec![],
         }
     }
-
-    fn check_len(&mut self, _expect_len: usize, _typehint: Option<&str>) -> Result<usize> {
-        let (_key, len) = self.next_len.last().ok_or(Error::NeedKey)?;
-        // if len != &expect_len {
-        //     return Err(Error::TypeLength(format!(
-        //         "key: {key} expect {expect_len} got {len}{}",
-        //         typehint.map_or("".to_string(), |s| format!(" typehint: {}", s))
-        //     )));
-        // }
-        Ok(*len)
-    }
 }
 
 /// Deserialize from bytes
@@ -44,11 +33,6 @@ where
     if deserializer.input.len() == deserializer.position {
         Ok(t)
     } else {
-        println!(
-            "ContentLenght {} {}",
-            deserializer.input.len(),
-            deserializer.position
-        );
         Err(Error::ContentLenght)
     }
 }
@@ -70,7 +54,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        let _len = self.check_len(1, Some("bool"))?;
         let result = self.input[self.position] != 0;
         self.position += 1;
         visitor.visit_bool(result)
@@ -80,7 +63,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        let _len = self.check_len(1, Some("i8"))?;
         let result = self.input[self.position] as i8;
         self.position += 1;
         visitor.visit_i8(result)
@@ -90,8 +72,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        println!("deserialize_i16 at {}", self.position);
-        let _len = self.check_len(2, Some("i16"))?;
         let result = BigEndian::read_i16(&self.input[self.position..]);
         self.position += 2;
         visitor.visit_i16(result)
@@ -101,8 +81,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        println!("deserialize_i32 at {}", self.position);
-        let _len = self.check_len(4, Some("i32"))?;
         let result = BigEndian::read_i32(&self.input[self.position..]);
         self.position += 4;
         visitor.visit_i32(result)
@@ -112,8 +90,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        println!("deserialize_i64 at {}", self.position);
-        let _len = self.check_len(8, Some("i64"))?;
         let result = BigEndian::read_i64(&self.input[self.position..]);
         self.position += 8;
         visitor.visit_i64(result)
@@ -123,7 +99,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        let _len = self.check_len(1, Some("u8"))?;
         let result = self.input[self.position];
         self.position += 1;
         visitor.visit_u8(result)
@@ -133,8 +108,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        println!("deserialize_u16 at {}", self.position);
-        let _len = self.check_len(2, Some("u16"))?;
         let result = BigEndian::read_u16(&self.input[self.position..]);
         self.position += 2;
         visitor.visit_u16(result)
@@ -144,7 +117,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        let _len = self.check_len(4, Some("u32"))?;
         let result = BigEndian::read_u32(&self.input[self.position..]);
         self.position += 4;
         visitor.visit_u32(result)
@@ -154,7 +126,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        let _len = self.check_len(8, Some("u64"))?;
         let result = BigEndian::read_u64(&self.input[self.position..]);
         self.position += 8;
         visitor.visit_u64(result)
@@ -164,7 +135,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        let _len = self.check_len(4, Some("f32"))?;
         let result = BigEndian::read_f32(&self.input[self.position..]);
         self.position += 4;
         visitor.visit_f32(result)
@@ -174,7 +144,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        let _len = self.check_len(8, Some("f64"))?;
         let result = BigEndian::read_f64(&self.input[self.position..]);
         self.position += 8;
         visitor.visit_f64(result)
@@ -222,7 +191,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        println!("deserialize_option at {}", self.position);
         let (_key, len) = self.next_len.last().ok_or(Error::NeedKey)?;
         if len == &0 {
             visitor.visit_none()
@@ -235,7 +203,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        println!("deserialize_unit at {}", self.position);
         visitor.visit_unit()
     }
 
@@ -329,7 +296,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        println!("deserialize_struct at {}", self.position);
         if self.position == 0 {
             let key_len = check_universal_key_len(name)?;
             let key = &self.input[self.position..self.position + key_len];
@@ -362,10 +328,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         let v = self.input[self.position];
         let (length_len, content_len) =
             parse_length(&self.input[self.position + 1..]).map_err(Error::UnsupportedLength)?;
-        println!(
-            "deserialize_identifier {v} at {} content_len {}",
-            self.position, content_len
-        );
         self.position += 1 + length_len;
         self.next_len.push((v, content_len));
         visitor.visit_string(v.to_string())
@@ -376,7 +338,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         // デシリアライズ先がない場合はデータを無視する
-        println!("deserialize_ignored_any {} ", self.position);
         let (_key, len) = self.next_len.last().ok_or(Error::NeedKey)?;
         self.position += len;
         visitor.visit_unit()
@@ -402,10 +363,6 @@ impl<'de, 'a> MapAccess<'de> for KLVVisitor<'a, 'de> {
         K: DeserializeSeed<'de>,
     {
         // Check if there are no more entries.
-        println!(
-            "next_key_seed {} depth: {}",
-            self.de.position, self.de.depth
-        );
         if self.de.position >= self.len {
             return Ok(None);
         }
@@ -417,7 +374,6 @@ impl<'de, 'a> MapAccess<'de> for KLVVisitor<'a, 'de> {
     where
         V: DeserializeSeed<'de>,
     {
-        println!("next_value_seed {} in {}", self.de.position, self.len);
         // >=ではないのはunitのようなからのデータが末尾に来る場合にpositionがlenを超えるため
         if self.de.position > self.len {
             return Err(Error::ExpectedMapEnd);
