@@ -1,6 +1,6 @@
 [package]
 name = "serde_klv"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 authors = ["FUJINAKA Fumiya <uzuna.kf@gmail.com>"]
 description = "KLV data format for Serde"

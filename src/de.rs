@@ -253,7 +253,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        todo!()
+        unimplemented!()
     }
 
     fn deserialize_enum<V>(
@@ -296,10 +296,11 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
+        // 0階層目のみUniversalKeyが存在する
+        // それより深い階層は構造体定義呑みに依存するため、KLVの列のみでUniverslkeyを必要としない
         if self.position == 0 {
             let key_len = check_universal_key_len(name)?;
             let key = &self.input[self.position..self.position + key_len];
-            // BERに従うとする
             let (length_len, content_len) = parse_length(&self.input[self.position + key_len..])
                 .map_err(Error::UnsupportedLength)?;
             if name.as_bytes() != key {
@@ -324,11 +325,11 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         // jsonの場合はdeserialize_strへ飛んでいる
-        // Key-Lengthを読み出す関数を作る必要がある
         let v = self.input[self.position];
         let (length_len, content_len) =
             parse_length(&self.input[self.position + 1..]).map_err(Error::UnsupportedLength)?;
         self.position += 1 + length_len;
+        // 不定長データstructやstringなどの読み出し範囲として記録
         self.next_len.push((v, content_len));
         visitor.visit_string(v.to_string())
     }
@@ -362,11 +363,9 @@ impl<'de, 'a> MapAccess<'de> for KLVVisitor<'a, 'de> {
     where
         K: DeserializeSeed<'de>,
     {
-        // Check if there are no more entries.
         if self.de.position >= self.len {
             return Ok(None);
         }
-        // Deserialize a map key.
         seed.deserialize(&mut *self.de).map(Some)
     }
 
@@ -374,11 +373,11 @@ impl<'de, 'a> MapAccess<'de> for KLVVisitor<'a, 'de> {
     where
         V: DeserializeSeed<'de>,
     {
-        // >=ではないのはunitのようなからのデータが末尾に来る場合にpositionがlenを超えるため
+        // >=ではないのはunitのような長さ0のデータが末尾に来る場合に
+        // positionがValueの位置ではなくlenを超えた次のKeyに来るため
         if self.de.position > self.len {
             return Err(Error::ExpectedMapEnd);
         }
-        // Deserialize a map value.
         let v = seed.deserialize(&mut *self.de)?;
         self.de.next_len.pop();
         Ok(v)
@@ -398,10 +397,10 @@ impl<'de, 'a> SeqAccess<'de> for KLVVisitor<'a, 'de> {
             x if x > self.len => return Err(Error::ExpectedSeqEnd),
             _ => unreachable!(),
         }
-        // Deserialize a map value.
         seed.deserialize(&mut *self.de).map(Some)
     }
 }
+
 /// Parse for unknown KLVdata
 #[derive(Debug)]
 pub struct KLVMap<'m> {
