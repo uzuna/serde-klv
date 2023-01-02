@@ -297,7 +297,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         // 0階層目のみUniversalKeyが存在する
-        // それより深い階層は構造体定義呑みに依存するため、KLVの列のみでUniverslkeyを必要としない
+        // それより深い階層は構造体定義にのみ依存するためUniverslkeyを必要としない
         if self.position == 0 {
             let key_len = check_universal_key_len(name)?;
             if self.input.len() <= key_len {
