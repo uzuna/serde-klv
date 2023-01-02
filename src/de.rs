@@ -300,6 +300,9 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         // それより深い階層は構造体定義呑みに依存するため、KLVの列のみでUniverslkeyを必要としない
         if self.position == 0 {
             let key_len = check_universal_key_len(name)?;
+            if self.input.len() <= key_len {
+                return Err(Error::ContentLenght);
+            }
             let key = &self.input[self.position..self.position + key_len];
             let (length_len, content_len) = parse_length(&self.input[self.position + key_len..])
                 .map_err(Error::UnsupportedLength)?;
