@@ -30,6 +30,11 @@ pub enum Error {
     ExpectedString,
     // unmatch length between length and content
     ExpectedMapEnd,
+    ExpectedSeqEnd,
+    /// Can not serialize when has not key
+    NeedKey,
+    /// KLV format is not support Map
+    Unsupported(String),
 }
 
 impl ser::Error for Error {
