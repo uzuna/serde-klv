@@ -404,7 +404,18 @@ impl<'de, 'a> SeqAccess<'de> for KLVVisitor<'a, 'de> {
     }
 }
 
-/// Parse for unknown KLVdata
+/// Parse unknown KLVdata
+///
+/// Example
+/// ```
+/// use serde_klv::KLVMap;
+///
+/// let buf = vec![0,0,0,0,3,10,1,128];
+/// let x = KLVMap::try_from_bytes(&buf).unwrap();
+/// assert_eq!(x.universal_key(), "\0\0\0\0".as_bytes());
+/// assert_eq!(x.content_len(), 3);
+/// assert_eq!(x.iter().len(), 1);
+/// ```
 #[derive(Debug)]
 pub struct KLVMap<'m> {
     universal_key: &'m [u8],

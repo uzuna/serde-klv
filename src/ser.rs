@@ -768,6 +768,7 @@ mod tests {
 
         assert_eq!(x.universal_key(), "TESTDATA00000000".as_bytes());
         assert!(x.content_len() > 0);
+        assert_eq!(x.iter().len(), 9);
 
         for v in x.iter() {
             assert!(v.key > 0);
