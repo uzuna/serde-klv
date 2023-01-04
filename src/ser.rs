@@ -734,7 +734,17 @@ mod tests {
             bytes: &'a [u8],
             #[serde(rename = "62", with = "timestamp_micro")]
             ts: SystemTime,
+            #[serde(rename = "63")]
+            child: TestChild,
         }
+        #[derive(Debug, Serialize, Deserialize, PartialEq)]
+        struct TestChild {
+            #[serde(rename = "10")]
+            string: String,
+            #[serde(rename = "11")]
+            i8: i8,
+        }
+
         let ts = SystemTime::UNIX_EPOCH
             .checked_add(Duration::from_micros(1_000_233_000))
             .unwrap();
@@ -748,6 +758,10 @@ mod tests {
             str: "this is string",
             bytes: b"this is byte",
             ts,
+            child: TestChild {
+                string: "TestString".to_string(),
+                i8: 127,
+            },
         };
         let s = to_bytes(&t).unwrap();
         let x = KLVMap::try_from_bytes(&s).unwrap();
@@ -757,6 +771,7 @@ mod tests {
 
         for v in x.iter() {
             assert!(v.key > 0);
+            println!("{:?}", v);
         }
     }
 

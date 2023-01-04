@@ -416,22 +416,21 @@ impl<'m> KLVMap<'m> {
     /// parse from bytes
     pub fn try_from_bytes(buf: &'m [u8]) -> Result<Self> {
         let buf_len = buf.len();
-        if buf_len < 16 {
-            return Err(Error::ContentLenght);
-        }
-        let universal_key = &buf[0..16];
+        // key長探索
+        let uk_len = Self::find_universal_key(buf)?;
+        let universal_key = &buf[0..uk_len];
         let (length_len, content_len) =
-            parse_length(&buf[16..]).map_err(Error::UnsupportedLength)?;
-        let mut position = 16 + length_len;
+            parse_length(&buf[uk_len..]).map_err(Error::UnsupportedLength)?;
+        let mut position = uk_len + length_len;
         let mut values = vec![];
         while position < buf_len {
             let (length_len, content_len) =
                 parse_length(&buf[position + 1..]).map_err(Error::UnsupportedLength)?;
             values.push(KLVRaw::from(
                 buf[position],
-                position + length_len,
+                position,
                 content_len,
-                &buf[position + length_len..],
+                &buf[position + 1 + length_len..],
             ));
             position += 1 + length_len + content_len;
         }
@@ -454,6 +453,23 @@ impl<'m> KLVMap<'m> {
     /// iterate KLV records
     pub fn iter(&'m self) -> std::slice::Iter<KLVRaw<'m>> {
         self.values.iter()
+    }
+
+    // データからUniversalKeyの長さを取り出す
+    fn find_universal_key(buf: &'m [u8]) -> Result<usize> {
+        let buf_len = buf.len();
+        for l in [1, 2, 4, 16] {
+            // バッファの長さが想定する長さより短い
+            if l >= buf_len {
+                break;
+            }
+            let (lenght_len, content_len) =
+                parse_length(&buf[l..]).map_err(Error::UnsupportedLength)?;
+            if buf_len == l + lenght_len + content_len {
+                return Ok(l);
+            }
+        }
+        Err(Error::ContentLenght)
     }
 }
 
