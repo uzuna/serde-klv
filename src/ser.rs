@@ -454,6 +454,31 @@ mod tests {
     use crate::error::Error;
     use crate::ser::{to_bytes, KLVSerializer};
 
+    // データが空でもエラーにならないこと
+    #[test]
+    fn test_empty() {
+        #[derive(Debug, Serialize, Deserialize, PartialEq)]
+        #[serde(rename = "DUMY")]
+        struct TestEmpty {
+            #[serde(rename = "1", skip_serializing_if = "Option::is_none")]
+            one: Option<String>,
+            #[serde(rename = "2", skip_serializing_if = "Option::is_none")]
+            two: Option<String>,
+        }
+
+        let t = TestEmpty {
+            one: None,
+            two: None,
+        };
+        let s = to_bytes(&t).unwrap();
+        assert_eq!(s.len(), 5);
+        let x = from_bytes::<TestEmpty>(&s).unwrap();
+        assert_eq!(x, t);
+        let x = KLVMap::try_from_bytes(&s).unwrap();
+        assert_eq!(x.content_len(), 0);
+        assert_eq!(x.iter().len(), 0);
+    }
+
     #[test]
     fn test_serialize_error_by_key() {
         #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -734,7 +759,17 @@ mod tests {
             bytes: &'a [u8],
             #[serde(rename = "62", with = "timestamp_micro")]
             ts: SystemTime,
+            #[serde(rename = "63")]
+            child: TestChild,
         }
+        #[derive(Debug, Serialize, Deserialize, PartialEq)]
+        struct TestChild {
+            #[serde(rename = "10")]
+            string: String,
+            #[serde(rename = "11")]
+            i8: i8,
+        }
+
         let ts = SystemTime::UNIX_EPOCH
             .checked_add(Duration::from_micros(1_000_233_000))
             .unwrap();
@@ -748,15 +783,21 @@ mod tests {
             str: "this is string",
             bytes: b"this is byte",
             ts,
+            child: TestChild {
+                string: "TestString".to_string(),
+                i8: 127,
+            },
         };
         let s = to_bytes(&t).unwrap();
         let x = KLVMap::try_from_bytes(&s).unwrap();
 
         assert_eq!(x.universal_key(), "TESTDATA00000000".as_bytes());
         assert!(x.content_len() > 0);
+        assert_eq!(x.iter().len(), 9);
 
         for v in x.iter() {
             assert!(v.key > 0);
+            println!("{:?}", v);
         }
     }
 
