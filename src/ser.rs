@@ -454,6 +454,31 @@ mod tests {
     use crate::error::Error;
     use crate::ser::{to_bytes, KLVSerializer};
 
+    // データが空でもエラーにならないこと
+    #[test]
+    fn test_empty() {
+        #[derive(Debug, Serialize, Deserialize, PartialEq)]
+        #[serde(rename = "DUMY")]
+        struct TestEmpty {
+            #[serde(rename = "1", skip_serializing_if = "Option::is_none")]
+            one: Option<String>,
+            #[serde(rename = "2", skip_serializing_if = "Option::is_none")]
+            two: Option<String>,
+        }
+
+        let t = TestEmpty {
+            one: None,
+            two: None,
+        };
+        let s = to_bytes(&t).unwrap();
+        assert_eq!(s.len(), 5);
+        let x = from_bytes::<TestEmpty>(&s).unwrap();
+        assert_eq!(x, t);
+        let x = KLVMap::try_from_bytes(&s).unwrap();
+        assert_eq!(x.content_len(), 0);
+        assert_eq!(x.iter().len(), 0);
+    }
+
     #[test]
     fn test_serialize_error_by_key() {
         #[derive(Debug, Serialize, Deserialize, PartialEq)]
