@@ -4,9 +4,11 @@ pub trait CheckSumCalc {
     fn checksum(&self, bytes: &[u8]) -> u16;
 }
 
-struct WrappedCRC {
+/// use crc crate `Crc<u16>`
+pub struct WrappedCRC {
     crc: crc::Crc<u16>,
 }
+
 impl Default for WrappedCRC {
     fn default() -> Self {
         Self {
@@ -18,6 +20,12 @@ impl Default for WrappedCRC {
 impl CheckSumCalc for WrappedCRC {
     fn checksum(&self, bytes: &[u8]) -> u16 {
         self.crc.checksum(bytes)
+    }
+}
+
+impl WrappedCRC {
+    pub fn new(crc: crc::Crc<u16>) -> Self {
+        Self { crc }
     }
 }
 
@@ -34,8 +42,6 @@ mod tests {
         checksum::WrappedCRC, de::checksum, from_bytes, from_bytes_with_checksum,
         ser::to_bytes_with_checksum, to_bytes,
     };
-
-    use super::CheckSumCalc;
 
     #[derive(Debug, Serialize, Deserialize, PartialEq)]
     #[serde(rename = "TESTDATA00000000")]
@@ -80,9 +86,9 @@ mod tests {
         }
     }
 
-    // bit反転を検知できるか
+    // 0x01キーを使うので使用済みであるというエラーを出す
     #[test]
-    fn test_checksum_reserved() {
+    fn test_checksum_reserved_key_error() {
         #[derive(Debug, Serialize, Deserialize, PartialEq)]
         #[serde(rename = "TESTDATA00000000")]
         struct TestChecksum {
@@ -126,6 +132,7 @@ mod tests {
     // checksum付きのシリアライズ、デシリアライズ
     #[test]
     fn test_checksum() {
+        use super::CheckSumCalc;
         use byteorder::WriteBytesExt;
         let t = TestString {
             string: "123".to_string(),
