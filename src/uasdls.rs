@@ -6,11 +6,11 @@ use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
 
+use crate::checksum::CheckSumCalc;
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename = "\x06\x0e\x2b\x34\x02\x0b\x01\x01\x0e\x01\x03\x01\x01\x00\x00\x00")]
 pub struct UASDatalinkLS<'a> {
-    #[serde(rename = "1")]
-    pub checksum: u16,
     #[serde(rename = "2", with = "timestamp_micro")]
     pub timestamp: SystemTime,
     /// Relative between longitudinal axis and True North measured in the horizontal plane.
@@ -84,10 +84,23 @@ pub struct UASDatalinkLS<'a> {
     pub ls_version_number: u8,
 }
 
+/// Checksum Calculater for UAS Local Set packet
+pub struct CRC;
+
+impl CheckSumCalc for CRC {
+    fn checksum(&self, bytes: &[u8]) -> u16 {
+        let mut bcc: u16 = 0;
+        for (i, v) in bytes.iter().enumerate() {
+            let x = (*v as u16) << (8 * ((i + 1) % 2));
+            bcc = bcc.wrapping_add(x);
+        }
+        bcc
+    }
+}
+
 impl<'a> Default for UASDatalinkLS<'a> {
     fn default() -> Self {
         Self {
-            checksum: Default::default(),
             timestamp: SystemTime::UNIX_EPOCH,
             platform_heading_angle: Default::default(),
             platform_pitch_angle: Default::default(),
@@ -145,9 +158,25 @@ mod timestamp_micro {
 
 #[cfg(test)]
 mod tests {
-    use crate::{de::from_bytes, ser::to_bytes, uasdls::UASDatalinkLS};
+    use crate::{
+        checksum::CheckSumCalc,
+        de::from_bytes,
+        from_bytes_with_checksum,
+        ser::to_bytes,
+        uasdls::{UASDatalinkLS, CRC},
+    };
+    use byteorder::{BigEndian, ByteOrder};
     use chrono::{DateTime, Utc};
     use std::time::{Duration, SystemTime};
+
+    #[test]
+    fn test_checksum() {
+        let testdata = &[0x06_u8, 0x0e, 0x2b, 0x34, 0x02, 0x00, 0x81, 0xbb];
+        let c = CRC {};
+        let checksum = c.checksum(testdata);
+        let expect = BigEndian::read_u16(&[0xb4, 0xfd]);
+        assert_eq!(checksum, expect);
+    }
 
     #[test]
     fn test_uas_datalink_ls() {
@@ -183,7 +212,7 @@ mod tests {
             1, 2, 0x1c, 0x5f
             ];
 
-        let x = from_bytes::<UASDatalinkLS>(&buf).unwrap();
+        let x: UASDatalinkLS = from_bytes_with_checksum(&buf, CRC {}).unwrap();
         let datetime: DateTime<Utc> = x.timestamp.into();
         assert_eq!(
             DateTime::parse_from_rfc3339("2009-06-17T16:53:05.099653+00:00").unwrap(),
@@ -202,7 +231,6 @@ mod tests {
             .checked_add(Duration::from_micros(1_000_233_000))
             .unwrap();
         let t = UASDatalinkLS {
-            checksum: 0,
             timestamp: ts,
             platform_heading_angle: 123,
             platform_pitch_angle: -345,

@@ -32,7 +32,7 @@ mod tests {
 
     use crate::{
         checksum::WrappedCRC, de::checksum, from_bytes, from_bytes_with_checksum,
-        ser::to_bytes_with_crc, to_bytes,
+        ser::to_bytes_with_checksum, to_bytes,
     };
 
     use super::CheckSumCalc;
@@ -55,7 +55,7 @@ mod tests {
             u64: 123,
         };
 
-        let buf = to_bytes_with_crc(&t, WrappedCRC::default()).unwrap();
+        let buf = to_bytes_with_checksum(&t, WrappedCRC::default()).unwrap();
         let buf_len = buf.len();
         let mut raybox = cosmic_ray::RayBoxVec::new(buf);
 
@@ -112,13 +112,13 @@ mod tests {
 
         // checksumが有効な場合、1階層めに1のkeyを持っているとシリアライズに失敗する
         {
-            let err = to_bytes_with_crc(&t, WrappedCRC::default());
+            let err = to_bytes_with_checksum(&t, WrappedCRC::default());
             assert!(err.is_err());
         }
 
         // 2階層目以降には無関係
         let t = TestParent { checksum: t };
-        let buf = to_bytes_with_crc(&t, WrappedCRC::default()).unwrap();
+        let buf = to_bytes_with_checksum(&t, WrappedCRC::default()).unwrap();
         let x: TestParent = from_bytes(&buf).unwrap();
         assert_eq!(&t, &x);
     }
@@ -132,7 +132,7 @@ mod tests {
             u64: 123,
         };
 
-        let buf = to_bytes_with_crc(&t, WrappedCRC::default()).unwrap();
+        let buf = to_bytes_with_checksum(&t, WrappedCRC::default()).unwrap();
 
         let crc = WrappedCRC::default();
         let crc_code = crc.checksum(&buf[0..buf.len() - 2]);

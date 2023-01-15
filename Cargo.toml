@@ -1,6 +1,6 @@
 [package]
 name = "serde_klv"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 authors = ["FUJINAKA Fumiya <uzuna.kf@gmail.com>"]
 description = "KLV data format for Serde"
@@ -26,8 +26,7 @@ rand = "0.8.5"
 
 [features]
 default = []
-unstable = ["checksum"]
-checksum = []
+unstable = []
 uasdls = []
 
 [[bench]]

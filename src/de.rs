@@ -24,6 +24,7 @@ impl<'de> Deserializer<'de> {
 }
 
 /// Deserialize from bytes
+/// Checksumのフィールドは無視される
 pub fn from_bytes<'a, T>(s: &'a [u8]) -> Result<T>
 where
     T: Deserialize<'a>,
@@ -37,7 +38,6 @@ where
     }
 }
 
-#[cfg(feature = "checksum")]
 pub(crate) fn checksum<C: crate::checksum::CheckSumCalc>(s: &[u8], crc: C) -> Result<()> {
     use crate::checksum::CHECKSUM_KEY_LENGTH;
 
@@ -56,8 +56,8 @@ pub(crate) fn checksum<C: crate::checksum::CheckSumCalc>(s: &[u8], crc: C) -> Re
     Ok(())
 }
 
-/// Deserialize from bytes
-#[cfg(feature = "checksum")]
+/// Deserialize from bytes with checksum
+/// デシリアライズ前にChecksumでデータの破損がないか確認する
 pub fn from_bytes_with_checksum<'a, T, C: crate::checksum::CheckSumCalc>(
     s: &'a [u8],
     crc: C,

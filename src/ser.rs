@@ -21,8 +21,11 @@ where
 }
 
 /// Serialize to bytes append CRC at last field
-#[cfg(feature = "checksum")]
-pub fn to_bytes_with_crc<T, C: crate::checksum::CheckSumCalc>(value: &T, calc: C) -> Result<Vec<u8>>
+/// バッファの最後に16bit長のChecksumを追加する
+pub fn to_bytes_with_checksum<T, C: crate::checksum::CheckSumCalc>(
+    value: &T,
+    calc: C,
+) -> Result<Vec<u8>>
 where
     T: Serialize,
 {
@@ -132,7 +135,6 @@ impl KLVSerializer {
     }
     // checksum付きのEncode
     // MISB ST 0601.8の仕様に近いものとし、ChecksumTagのL部分までがchecksum計算の対象とする
-    #[cfg(feature = "checksum")]
     fn concat_with_checksum<C: crate::checksum::CheckSumCalc>(self, crc: C) -> Vec<u8> {
         use crate::checksum::CHECKSUM_KEY_LENGTH;
 
