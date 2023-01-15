@@ -1,3 +1,5 @@
+pub(crate) const CHECKSUM_KEY_LENGTH: &[u8; 2] = &[0x01, 0x02];
+
 pub trait CheckSumCalc {
     fn checksum(&self, bytes: &[u8]) -> u16;
 }
@@ -24,7 +26,9 @@ mod tests {
     use byteorder::BigEndian;
     use serde::{Deserialize, Serialize};
 
-    use crate::{checksum::WrappedCRC, ser::to_bytes_with_crc};
+    use crate::{
+        checksum::WrappedCRC, from_bytes, from_bytes_with_checksum, ser::to_bytes_with_crc,
+    };
 
     use super::CheckSumCalc;
 
@@ -56,5 +60,10 @@ mod tests {
             .write_u16::<BigEndian>(crc_code)
             .unwrap();
         println!("{:?}", crc_buf);
+
+        let x: TestString = from_bytes(&buf).unwrap();
+        assert_eq!(&t, &x);
+        let x: TestString = from_bytes_with_checksum(&buf, WrappedCRC::default()).unwrap();
+        assert_eq!(&t, &x);
     }
 }

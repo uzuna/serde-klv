@@ -37,6 +37,39 @@ where
     }
 }
 
+/// Deserialize from bytes
+#[cfg(feature = "checksum")]
+pub fn from_bytes_with_checksum<'a, T, C: crate::checksum::CheckSumCalc>(
+    s: &'a [u8],
+    crc: C,
+) -> Result<T>
+where
+    T: Deserialize<'a>,
+{
+    use crate::checksum::CHECKSUM_KEY_LENGTH;
+
+    let checksum_offset = s.len() - 4;
+    if &s[checksum_offset..checksum_offset + 2] != CHECKSUM_KEY_LENGTH {
+        return Err(Error::HasNotChecksum);
+    }
+    let crc_value = BigEndian::read_u16(&s[checksum_offset + 2..]);
+    let crc_calced = crc.checksum(&s[0..checksum_offset + 2]);
+    if crc_value != crc_calced {
+        return Err(Error::UnmatcheChecksum {
+            value: crc_value,
+            calced: crc_calced,
+        });
+    }
+
+    let mut deserializer = Deserializer::from_bytes(s);
+    let t = T::deserialize(&mut deserializer)?;
+    if deserializer.input.len() == deserializer.position {
+        Ok(t)
+    } else {
+        Err(Error::ContentLenght)
+    }
+}
+
 impl<'de> Deserializer<'de> {}
 
 impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {

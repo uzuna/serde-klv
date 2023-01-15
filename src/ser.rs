@@ -5,7 +5,6 @@ use serde::{ser, Serialize};
 
 use crate::{
     check_universal_key_len,
-    checksum::CheckSumCalc,
     error::{Error, Result},
     LengthOctet,
 };
@@ -23,7 +22,7 @@ where
 
 /// Serialize to bytes append CRC at last field
 #[cfg(feature = "checksum")]
-pub fn to_bytes_with_crc<T, C: CheckSumCalc>(value: &T, calc: C) -> Result<Vec<u8>>
+pub fn to_bytes_with_crc<T, C: crate::checksum::CheckSumCalc>(value: &T, calc: C) -> Result<Vec<u8>>
 where
     T: Serialize,
 {
@@ -116,7 +115,10 @@ impl KLVSerializer {
     }
     // checksum付きのEncode
     // MISB ST 0601.8の仕様に近いものとし、ChecksumTagのL部分までがchecksum計算の対象とする
-    fn concat_with_checksum<C: CheckSumCalc>(self, crc: C) -> Vec<u8> {
+    #[cfg(feature = "checksum")]
+    fn concat_with_checksum<C: crate::checksum::CheckSumCalc>(self, crc: C) -> Vec<u8> {
+        use crate::checksum::CHECKSUM_KEY_LENGTH;
+
         let Self {
             universal_key: mut key,
             mut output,
@@ -126,7 +128,7 @@ impl KLVSerializer {
         // 4 = K + L + V(2)
         LengthOctet::length_to_buf(&mut key, output.len() + 4).unwrap();
         key.extend_from_slice(&output);
-        key.extend_from_slice(&[0x01, 0x02]);
+        key.extend_from_slice(CHECKSUM_KEY_LENGTH);
         // calc checksum and write
         let crc_code = crc.checksum(&key);
         key.write_u16::<byteorder::BigEndian>(crc_code).unwrap();
