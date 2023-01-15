@@ -37,15 +37,8 @@ where
     }
 }
 
-/// Deserialize from bytes
 #[cfg(feature = "checksum")]
-pub fn from_bytes_with_checksum<'a, T, C: crate::checksum::CheckSumCalc>(
-    s: &'a [u8],
-    crc: C,
-) -> Result<T>
-where
-    T: Deserialize<'a>,
-{
+pub(crate) fn checksum<C: crate::checksum::CheckSumCalc>(s: &[u8], crc: C) -> Result<()> {
     use crate::checksum::CHECKSUM_KEY_LENGTH;
 
     let checksum_offset = s.len() - 4;
@@ -60,7 +53,19 @@ where
             calced: crc_calced,
         });
     }
+    Ok(())
+}
 
+/// Deserialize from bytes
+#[cfg(feature = "checksum")]
+pub fn from_bytes_with_checksum<'a, T, C: crate::checksum::CheckSumCalc>(
+    s: &'a [u8],
+    crc: C,
+) -> Result<T>
+where
+    T: Deserialize<'a>,
+{
+    checksum(s, crc)?;
     let mut deserializer = Deserializer::from_bytes(s);
     let t = T::deserialize(&mut deserializer)?;
     if deserializer.input.len() == deserializer.position {
