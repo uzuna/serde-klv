@@ -59,6 +59,7 @@ use std::fmt::Debug;
 
 use byteorder::ByteOrder;
 
+mod checksum;
 mod de;
 pub mod error;
 mod ser;
@@ -68,6 +69,8 @@ pub mod uasdls;
 
 pub use de::{from_bytes, KLVMap, KLVRaw};
 pub use ser::to_bytes;
+#[cfg(feature = "checksum")]
+pub use ser::to_bytes_with_crc;
 
 type LengthByteSize = usize;
 type ContentByteSize = usize;

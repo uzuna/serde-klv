@@ -5,6 +5,7 @@ use serde::{ser, Serialize};
 
 use crate::{
     check_universal_key_len,
+    checksum::CheckSumCalc,
     error::{Error, Result},
     LengthOctet,
 };
@@ -18,6 +19,18 @@ where
     value.serialize(&mut serializer)?;
     // ここでKeyを合成するのが良さそう
     Ok(serializer.concat())
+}
+
+/// Serialize to bytes append CRC at last field
+#[cfg(feature = "checksum")]
+pub fn to_bytes_with_crc<T, C: CheckSumCalc>(value: &T, calc: C) -> Result<Vec<u8>>
+where
+    T: Serialize,
+{
+    let mut serializer = KLVSerializer::default();
+    value.serialize(&mut serializer)?;
+    // ここでKeyを合成するのが良さそう
+    Ok(serializer.concat_with_checksum(calc))
 }
 
 // KLVシリアライザ
@@ -99,6 +112,24 @@ impl KLVSerializer {
         let output = output.pop().unwrap();
         LengthOctet::length_to_buf(&mut key, output.len()).unwrap();
         key.extend_from_slice(&output);
+        key
+    }
+    // checksum付きのEncode
+    // MISB ST 0601.8の仕様に近いものとし、ChecksumTagのL部分までがchecksum計算の対象とする
+    fn concat_with_checksum<C: CheckSumCalc>(self, crc: C) -> Vec<u8> {
+        let Self {
+            universal_key: mut key,
+            mut output,
+            ..
+        } = self;
+        let output = output.pop().unwrap();
+        // 4 = K + L + V(2)
+        LengthOctet::length_to_buf(&mut key, output.len() + 4).unwrap();
+        key.extend_from_slice(&output);
+        key.extend_from_slice(&[0x01, 0x02]);
+        // calc checksum and write
+        let crc_code = crc.checksum(&key);
+        key.write_u16::<byteorder::BigEndian>(crc_code).unwrap();
         key
     }
 }
@@ -445,7 +476,6 @@ impl<'a> ser::SerializeStructVariant for &'a mut KLVSerializer {
 
 #[cfg(test)]
 mod tests {
-
     use std::time::{Duration, SystemTime};
 
     use serde::{Deserialize, Serialize};
@@ -598,11 +628,6 @@ mod tests {
     }
     #[test]
     fn test_serialize_optional_string() {
-        fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-            haystack
-                .windows(needle.len())
-                .position(|window| window == needle)
-        }
         #[derive(Debug, Serialize, Deserialize, PartialEq)]
         #[serde(rename = "TESTDATA00000000")]
         struct TestString {
