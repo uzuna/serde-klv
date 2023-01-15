@@ -26,7 +26,9 @@ pub fn to_bytes_with_crc<T, C: crate::checksum::CheckSumCalc>(value: &T, calc: C
 where
     T: Serialize,
 {
-    let mut serializer = KLVSerializer::default();
+    let mut reserved_key = BTreeSet::new();
+    reserved_key.insert(0x01);
+    let mut serializer = KLVSerializer::with_reserved_key(reserved_key);
     value.serialize(&mut serializer)?;
     // ここでKeyを合成するのが良さそう
     Ok(serializer.concat_with_checksum(calc))
@@ -49,6 +51,8 @@ struct KLVSerializer {
     output: Vec<Vec<u8>>,
     // 各層毎の使用済みKeyマップ
     keys: Vec<BTreeSet<u8>>,
+    // checksumのような予約済みのキー
+    reserved_key: BTreeSet<u8>,
 }
 
 impl Default for KLVSerializer {
@@ -58,11 +62,21 @@ impl Default for KLVSerializer {
             depth: 0,
             output: vec![vec![]],
             keys: vec![BTreeSet::new()],
+            reserved_key: BTreeSet::new(),
         }
     }
 }
 
 impl KLVSerializer {
+    fn with_reserved_key(reserved_key: BTreeSet<u8>) -> Self {
+        Self {
+            universal_key: vec![],
+            depth: 0,
+            output: vec![vec![]],
+            keys: vec![BTreeSet::new()],
+            reserved_key,
+        }
+    }
     fn next_depth(&mut self) {
         self.depth += 1;
         self.output.push(vec![]);
@@ -76,10 +90,13 @@ impl KLVSerializer {
     }
     fn write_key(&mut self, key: u8) -> Result<()> {
         let index = self.depth - 1;
+        if index == 0 && self.reserved_key.contains(&key) {
+            return Err(Error::Key(format!("key is reserved: {}", key)));
+        }
         if let Some(n) = self.keys.get_mut(index) {
             if !n.insert(key) {
                 return Err(Error::Key(format!(
-                    "already use field {} in depth {} ",
+                    "already use field {} in depth {}",
                     key, index
                 )));
             }

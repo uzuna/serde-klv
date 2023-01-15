@@ -32,7 +32,7 @@ mod tests {
 
     use crate::{
         checksum::WrappedCRC, de::checksum, from_bytes, from_bytes_with_checksum,
-        ser::to_bytes_with_crc,
+        ser::to_bytes_with_crc, to_bytes,
     };
 
     use super::CheckSumCalc;
@@ -78,6 +78,49 @@ mod tests {
             raybox.restore_all();
             assert!(checksum(raybox.deref(), WrappedCRC::default()).is_ok());
         }
+    }
+
+    // bit反転を検知できるか
+    #[test]
+    fn test_checksum_reserved() {
+        #[derive(Debug, Serialize, Deserialize, PartialEq)]
+        #[serde(rename = "TESTDATA00000000")]
+        struct TestChecksum {
+            #[serde(rename = "1")]
+            checksum: u16,
+
+            #[serde(rename = "40")]
+            u64: u64,
+        }
+        #[derive(Debug, Serialize, Deserialize, PartialEq)]
+        #[serde(rename = "TESTDATA00000000")]
+        struct TestParent {
+            #[serde(rename = "10")]
+            checksum: TestChecksum,
+        }
+        let t = TestChecksum {
+            checksum: 0,
+            u64: 123,
+        };
+
+        // checksumなしなら1のキーがあっても問題なし
+        {
+            let buf = to_bytes(&t).unwrap();
+            let x: TestChecksum = from_bytes(&buf).unwrap();
+            assert_eq!(&t, &x);
+        }
+
+        // checksumが有効な場合、1階層めに1のkeyを持っているとシリアライズに失敗する
+        {
+            let err = to_bytes_with_crc(&t, WrappedCRC::default());
+            assert!(err.is_err());
+        }
+
+        // 2階層目以降には無関係
+        let t = TestParent { checksum: t };
+        let buf = to_bytes_with_crc(&t, WrappedCRC::default()).unwrap();
+        let x: TestParent = from_bytes(&buf).unwrap();
+        assert_eq!(&t, &x);
     }
 
     // checksum付きのシリアライズ、デシリアライズ
