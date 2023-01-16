@@ -35,6 +35,12 @@ pub enum Error {
     NeedKey,
     /// KLV format is not support Map
     Unsupported(String),
+    /// Has not checksum field
+    HasNotChecksum,
+    UnmatcheChecksum {
+        value: u16,
+        calced: u16,
+    },
 }
 
 impl ser::Error for Error {

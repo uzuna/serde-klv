@@ -20,6 +20,23 @@ where
     Ok(serializer.concat())
 }
 
+/// Serialize to bytes append CRC at last field
+/// バッファの最後に16bit長のChecksumを追加する
+pub fn to_bytes_with_checksum<T, C: crate::checksum::CheckSumCalc>(
+    value: &T,
+    calc: C,
+) -> Result<Vec<u8>>
+where
+    T: Serialize,
+{
+    let mut reserved_key = BTreeSet::new();
+    reserved_key.insert(0x01);
+    let mut serializer = KLVSerializer::with_reserved_key(reserved_key);
+    value.serialize(&mut serializer)?;
+    // ここでKeyを合成するのが良さそう
+    Ok(serializer.concat_with_checksum(calc))
+}
+
 // KLVシリアライザ
 // 基本的にはKLVのうちVを行う
 // structに限りKLの処理が必要でTopLevelだけはuniversal_keyで保持する
@@ -37,6 +54,8 @@ struct KLVSerializer {
     output: Vec<Vec<u8>>,
     // 各層毎の使用済みKeyマップ
     keys: Vec<BTreeSet<u8>>,
+    // checksumのような予約済みのキー
+    reserved_key: BTreeSet<u8>,
 }
 
 impl Default for KLVSerializer {
@@ -46,11 +65,21 @@ impl Default for KLVSerializer {
             depth: 0,
             output: vec![vec![]],
             keys: vec![BTreeSet::new()],
+            reserved_key: BTreeSet::new(),
         }
     }
 }
 
 impl KLVSerializer {
+    fn with_reserved_key(reserved_key: BTreeSet<u8>) -> Self {
+        Self {
+            universal_key: vec![],
+            depth: 0,
+            output: vec![vec![]],
+            keys: vec![BTreeSet::new()],
+            reserved_key,
+        }
+    }
     fn next_depth(&mut self) {
         self.depth += 1;
         self.output.push(vec![]);
@@ -64,10 +93,13 @@ impl KLVSerializer {
     }
     fn write_key(&mut self, key: u8) -> Result<()> {
         let index = self.depth - 1;
+        if index == 0 && self.reserved_key.contains(&key) {
+            return Err(Error::Key(format!("key is reserved: {}", key)));
+        }
         if let Some(n) = self.keys.get_mut(index) {
             if !n.insert(key) {
                 return Err(Error::Key(format!(
-                    "already use field {} in depth {} ",
+                    "already use field {} in depth {}",
                     key, index
                 )));
             }
@@ -99,6 +131,26 @@ impl KLVSerializer {
         let output = output.pop().unwrap();
         LengthOctet::length_to_buf(&mut key, output.len()).unwrap();
         key.extend_from_slice(&output);
+        key
+    }
+    // checksum付きのEncode
+    // MISB ST 0601.8の仕様に近いものとし、ChecksumTagのL部分までがchecksum計算の対象とする
+    fn concat_with_checksum<C: crate::checksum::CheckSumCalc>(self, crc: C) -> Vec<u8> {
+        use crate::checksum::CHECKSUM_KEY_LENGTH;
+
+        let Self {
+            universal_key: mut key,
+            mut output,
+            ..
+        } = self;
+        let output = output.pop().unwrap();
+        // 4 = K + L + V(2)
+        LengthOctet::length_to_buf(&mut key, output.len() + 4).unwrap();
+        key.extend_from_slice(&output);
+        key.extend_from_slice(CHECKSUM_KEY_LENGTH);
+        // calc checksum and write
+        let crc_code = crc.checksum(&key);
+        key.write_u16::<byteorder::BigEndian>(crc_code).unwrap();
         key
     }
 }
@@ -445,7 +497,6 @@ impl<'a> ser::SerializeStructVariant for &'a mut KLVSerializer {
 
 #[cfg(test)]
 mod tests {
-
     use std::time::{Duration, SystemTime};
 
     use serde::{Deserialize, Serialize};
@@ -598,11 +649,6 @@ mod tests {
     }
     #[test]
     fn test_serialize_optional_string() {
-        fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-            haystack
-                .windows(needle.len())
-                .position(|window| window == needle)
-        }
         #[derive(Debug, Serialize, Deserialize, PartialEq)]
         #[serde(rename = "TESTDATA00000000")]
         struct TestString {

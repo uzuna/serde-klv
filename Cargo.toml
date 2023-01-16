@@ -1,6 +1,6 @@
 [package]
 name = "serde_klv"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 authors = ["FUJINAKA Fumiya <uzuna.kf@gmail.com>"]
 description = "KLV data format for Serde"
@@ -13,6 +13,7 @@ exclude = [".github", "Makefile"]
 
 [dependencies]
 byteorder = {version = "1.4.3"}
+crc = "3.0.0"
 serde = { version = "1.0.149" }
 
 [dev-dependencies]
@@ -20,9 +21,12 @@ serde = { version = "1.0.149", features = ["derive"] }
 chrono = "0.4.22"
 criterion = "0.4.0"
 serde_bytes = "0.11.7"
+cosmic-ray = { package = "cosmic-ray", git = "https://github.com/uzuna/cosmic-ray" }
+rand = "0.8.5"
 
 [features]
 default = []
+unstable = []
 uasdls = []
 
 [[bench]]

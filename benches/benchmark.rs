@@ -1,5 +1,8 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use serde_klv::{from_bytes, uasdls::UASDatalinkLS};
+use serde_klv::{
+    from_bytes, from_bytes_with_checksum,
+    uasdls::{UASDatalinkLS, CRC},
+};
 
 const KLV_FRAME_DATA: &[u8] = &[
     0x06, 0x0e, 0x2b, 0x34, 0x02, 0x0b, 0x01, 0x01, 0x0e, 0x01, 0x03, 0x01, 0x01, 0x00, 0x00, 0x00,
@@ -18,8 +21,12 @@ const KLV_FRAME_DATA: &[u8] = &[
 fn bench_main(c: &mut Criterion) {
     c.bench_function("klv_parse_UASDLS_sample", |b| {
         b.iter(|| {
-            let x = from_bytes::<UASDatalinkLS>(KLV_FRAME_DATA).unwrap();
-            assert!(x.checksum > 0);
+            let _x = from_bytes::<UASDatalinkLS>(KLV_FRAME_DATA).unwrap();
+        })
+    });
+    c.bench_function("klv_parse_UASDLS_sample_with_checksum", |b| {
+        b.iter(|| {
+            let _x: UASDatalinkLS = from_bytes_with_checksum(KLV_FRAME_DATA, CRC {}).unwrap();
         })
     });
 }

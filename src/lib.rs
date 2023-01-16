@@ -53,12 +53,20 @@
 //! let buf = to_bytes(&t).unwrap();
 //! let x = from_bytes::<TestStruct>(&buf).unwrap();
 //! assert_eq!(&t, &x);
+//!
+//! // with checksum
+//! use serde_klv::{from_bytes_with_checksum, to_bytes_with_checksum, WrappedCRC};
+//!
+//! let buf = to_bytes_with_checksum(&t, WrappedCRC::default()).unwrap();
+//! let x: TestStruct = from_bytes_with_checksum(&buf, WrappedCRC::default()).unwrap();
+//! assert_eq!(&t, &x);
 //! ```
 
 use std::fmt::Debug;
 
 use byteorder::ByteOrder;
 
+mod checksum;
 mod de;
 pub mod error;
 mod ser;
@@ -66,8 +74,9 @@ mod ser;
 #[cfg(feature = "uasdls")]
 pub mod uasdls;
 
-pub use de::{from_bytes, KLVMap, KLVRaw};
-pub use ser::to_bytes;
+pub use checksum::{CheckSumCalc, WrappedCRC};
+pub use de::{from_bytes, from_bytes_with_checksum, KLVMap, KLVRaw};
+pub use ser::{to_bytes, to_bytes_with_checksum};
 
 type LengthByteSize = usize;
 type ContentByteSize = usize;
