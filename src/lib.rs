@@ -99,7 +99,7 @@ pub fn parse_length(buf: &[u8]) -> Result<(LengthByteSize, ContentByteSize), Str
             4 => Ok((5, BigEndian::read_u32(&buf[1..5]) as usize)),
             8 => Ok((9, BigEndian::read_u64(&buf[1..9]) as usize)),
             x => Err(format!(
-                "Unsupported length [{}], supported only {{1,2,4,8}}",
+                "Unsupported length [{}], supported only {{1,2,3,4,8}}",
                 x
             )),
         },
