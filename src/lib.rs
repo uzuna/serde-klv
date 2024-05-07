@@ -96,7 +96,6 @@ pub fn parse_length(buf: &[u8]) -> Result<(LengthByteSize, ContentByteSize), Str
                 arr_ref.copy_from_slice(&buf[1..4]);
                 Ok((4, BigEndian::read_u32(&buf_tmp) as usize))
             }
-            ,
             4 => Ok((5, BigEndian::read_u32(&buf[1..5]) as usize)),
             8 => Ok((9, BigEndian::read_u64(&buf[1..9]) as usize)),
             x => Err(format!(
@@ -197,22 +196,15 @@ mod tests {
 
     #[test]
     fn test_parse_length_size1() {
-        let cases = [
-            ([1_u8], (1, 1)),
-            ([3_u8], (1, 3)),
-        ];
+        let cases = [([1_u8], (1, 1)), ([3_u8], (1, 3))];
         for (buf, (expected_length, expected_content_length)) in cases {
             verify_length(&buf, expected_length, expected_content_length);
         }
-
     }
 
     #[test]
     fn test_parse_length_size2() {
-        let cases = [
-            ([0x81, 1], (2, 1)),
-            ([0x81, 8], (2, 8)),
-        ];
+        let cases = [([0x81, 1], (2, 1)), ([0x81, 8], (2, 8))];
         for (buf, (expected_length, expected_content_length)) in cases {
             verify_length(&buf, expected_length, expected_content_length);
         }
@@ -223,7 +215,7 @@ mod tests {
         let cases = [
             ([0x82, 0, 1], (3, 1)),
             ([0x82, 0, 9], (3, 9)),
-            ([0x82, 1, 1], (3, 1*256 + 1)),
+            ([0x82, 1, 1], (3, 1 * 256 + 1)),
         ];
         for (buf, (expected_length, expected_content_length)) in cases {
             verify_length(&buf, expected_length, expected_content_length);
@@ -247,13 +239,13 @@ mod tests {
         let cases = [
             ([0x88, 0, 0, 0, 0, 0, 0, 0, 1], (9, 1)),
             ([0x88, 0, 0, 0, 3, 0, 0, 0, 1], (9, 1 + 3 * 4294967296)),
-            ([0x88, 0, 0, 0, 0, 1, 2, 0, 1], (9, 1 + 2 * 65536 + 1 * 16777216)),
+            (
+                [0x88, 0, 0, 0, 0, 1, 2, 0, 1],
+                (9, 1 + 2 * 65536 + 1 * 16777216),
+            ),
         ];
         for (buf, (expected_length, expected_content_length)) in cases {
             verify_length(&buf, expected_length, expected_content_length);
         }
     }
-
-
-
 }
