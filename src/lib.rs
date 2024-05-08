@@ -89,10 +89,17 @@ pub fn parse_length(buf: &[u8]) -> Result<(LengthByteSize, ContentByteSize), Str
         LengthOctet::Long(x) => match x {
             1 => Ok((2, buf[1] as usize)),
             2 => Ok((3, BigEndian::read_u16(&buf[1..3]) as usize)),
-            4 => Ok((4, BigEndian::read_u32(&buf[1..5]) as usize)),
-            8 => Ok((4, BigEndian::read_u64(&buf[1..9]) as usize)),
+            3 => {
+                // parse uint24 by padding with leading zero
+                let mut buf_tmp = [0_u8; 4];
+                let arr_ref = &mut buf_tmp[1..4];
+                arr_ref.copy_from_slice(&buf[1..4]);
+                Ok((4, BigEndian::read_u32(&buf_tmp) as usize))
+            }
+            4 => Ok((5, BigEndian::read_u32(&buf[1..5]) as usize)),
+            8 => Ok((9, BigEndian::read_u64(&buf[1..9]) as usize)),
             x => Err(format!(
-                "Unsupported length [{}], supported only {{1,2,4,8}}",
+                "Unsupported length [{}], supported only {{1,2,3,4,8}}",
                 x
             )),
         },
@@ -160,7 +167,7 @@ fn check_universal_key_len(name: &str) -> Result<usize, error::Error> {
 #[cfg(test)]
 mod tests {
 
-    use crate::LengthOctet;
+    use crate::{parse_length, LengthOctet};
 
     #[test]
     fn test_length_octets() {
@@ -178,6 +185,67 @@ mod tests {
         for (b, expect) in td {
             let lo = LengthOctet::from_u8(b);
             assert_eq!(lo, expect);
+        }
+    }
+
+    fn verify_length(buf: &[u8], expected_length: usize, expected_content_length: usize) {
+        let (length_bytes, content_length) = parse_length(buf).unwrap();
+        assert_eq!(length_bytes, expected_length);
+        assert_eq!(content_length, expected_content_length);
+    }
+
+    #[test]
+    fn test_parse_length_size1() {
+        let cases = [([1_u8], (1, 1)), ([3_u8], (1, 3))];
+        for (buf, (expected_length, expected_content_length)) in cases {
+            verify_length(&buf, expected_length, expected_content_length);
+        }
+    }
+
+    #[test]
+    fn test_parse_length_size2() {
+        let cases = [([0x81, 1], (2, 1)), ([0x81, 8], (2, 8))];
+        for (buf, (expected_length, expected_content_length)) in cases {
+            verify_length(&buf, expected_length, expected_content_length);
+        }
+    }
+
+    #[test]
+    fn test_parse_length_size3() {
+        let cases = [
+            ([0x82, 0, 1], (3, 1)),
+            ([0x82, 0, 9], (3, 9)),
+            ([0x82, 1, 1], (3, 1 * 256 + 1)),
+        ];
+        for (buf, (expected_length, expected_content_length)) in cases {
+            verify_length(&buf, expected_length, expected_content_length);
+        }
+    }
+
+    #[test]
+    fn test_parse_length_size4() {
+        let cases = [
+            ([0x84, 0, 0, 0, 1], (5, 1)),
+            ([0x84, 0, 0, 1, 0], (5, 256)),
+            ([0x84, 0, 1, 0, 1], (5, 65536 + 1)),
+        ];
+        for (buf, (expected_length, expected_content_length)) in cases {
+            verify_length(&buf, expected_length, expected_content_length);
+        }
+    }
+
+    #[test]
+    fn test_parse_length_size8() {
+        let cases = [
+            ([0x88, 0, 0, 0, 0, 0, 0, 0, 1], (9, 1)),
+            ([0x88, 0, 0, 0, 3, 0, 0, 0, 1], (9, 1 + 3 * 4294967296)),
+            (
+                [0x88, 0, 0, 0, 0, 1, 2, 0, 1],
+                (9, 1 + 2 * 65536 + 1 * 16777216),
+            ),
+        ];
+        for (buf, (expected_length, expected_content_length)) in cases {
+            verify_length(&buf, expected_length, expected_content_length);
         }
     }
 }
